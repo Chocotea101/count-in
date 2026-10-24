@@ -78,11 +78,38 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--beat);outline-o
 .viz{position:relative;flex:1;min-width:0;border-radius:22px;background:var(--raise);overflow:hidden;touch-action:pan-y}
 .sheetbox{flex:1;min-width:0;border-radius:14px;background:var(--raise);overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;position:relative}
 .sheetbox{touch-action:pan-y pinch-zoom}
-.sheetbox.fitpage{scroll-snap-type:y mandatory}
 .pages{display:flex;flex-direction:column;align-items:center;gap:8px;padding-bottom:40vh}
-.fitpage .pages{gap:0;padding-bottom:0}
-.pg{display:flex;align-items:center;justify-content:center;width:100%;scroll-snap-align:start}
+.pg{display:flex;align-items:center;justify-content:center;width:100%}
 .pg canvas{display:block;background:#fff}
+/* 쪽 맞춤: 한 화면에 한 쪽(가로면 두 쪽), 옆으로 밀어 넘김 */
+.sheetbox.fitpage{overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;touch-action:pan-x pinch-zoom}
+.sheetbox.fitpage{scrollbar-width:none}
+.sheetbox.fitpage::-webkit-scrollbar{display:none}
+.fitpage .pages{flex-direction:row;align-items:stretch;gap:0;padding:0;height:100%}
+.fitpage .pg{flex:none;height:100%}
+.fitpage .pg.snap{scroll-snap-align:start}
+/* 악보 전체 화면: 조작 막대는 탭하면 위아래로 떠요 */
+.sheeton .ph,.sheeton .side,.sheeton .dots{display:none}
+.sheeton .vwrap{padding:0}
+.sheeton .stage{min-height:0}
+.sheeton .sheetbox{border-radius:0}
+.scr.sheeton.ui .ph{display:flex;position:absolute;left:0;right:0;top:var(--st);z-index:12;background:rgba(15,18,23,.94);border-bottom:1px solid var(--line);padding:8px max(10px,var(--sl)) 8px max(10px,var(--sr))}
+.scr.sheeton.ui .side{display:flex;position:absolute;left:max(8px,var(--sl));right:max(8px,var(--sr));bottom:calc(var(--sb) + 8px);z-index:12;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 14px;
+  background:rgba(23,27,34,.96);border:1px solid var(--line);border-radius:20px;padding:6px 10px;width:auto;max-width:none;overflow:visible}
+.scr.sheeton.ui .bpmrow{padding:0;gap:8px}
+.scr.sheeton.ui .bpmbox .big{font-size:40px}
+.scr.sheeton.ui .rbtn{width:42px;height:42px;font-size:20px}
+.scr.sheeton.ui .ctrl{padding:4px 0;gap:4px}
+.scr.sheeton.ui .ctrl > button{font-size:0;min-width:46px}
+.scr.sheeton.ui .ctrl .main{width:58px;height:58px;font-size:22px}
+.scr.sheeton.ui .savebpm{bottom:-16px}
+.scr.sheeton.ui .lockhint{width:100%;padding:0}
+#pgFit{font-size:13px;width:auto;padding:0 10px;border-radius:999px}
+.pgside{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:96px;border-radius:14px;background:rgba(15,18,23,.28);color:rgba(236,231,220,.85);font-size:30px;z-index:3;display:none;align-items:center;justify-content:center}
+.pgside:active{background:rgba(15,18,23,.6)}
+.pgside.l{left:max(4px,var(--sl))} .pgside.r{right:max(4px,var(--sr))}
+.sheeton .pgside{display:flex}
+.nobtns .pgside{display:none!important}
 .sheetmsg{margin:auto;padding:40px 20px;text-align:center;color:var(--mute);font-size:14px;line-height:1.6}
 .barno{position:absolute;left:8px;top:8px;display:flex;align-items:center;gap:2px;background:rgba(15,18,23,.82);border:1px solid var(--line);border-radius:12px;padding:2px;z-index:2}
 .barno button{width:34px;height:38px;border-radius:9px;font-size:18px;color:var(--mute)}
@@ -90,10 +117,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--beat);outline-o
 .barno .bv b{display:block;font-family:var(--f-num);font-weight:800;font-size:30px}
 .barno .bv small{font-family:var(--f-mono);font-size:9px;color:var(--mute);letter-spacing:.1em}
 .barno.cnt .bv b{color:var(--cue)}
-.sheeton .barno{top:auto;bottom:8px}
-.pgnav{position:absolute;right:8px;bottom:8px;display:flex;align-items:center;gap:2px;background:rgba(15,18,23,.82);border:1px solid var(--line);border-radius:12px;padding:2px;z-index:2;font-family:var(--f-mono);font-size:12px;color:var(--mute)}
-.pgnav button{min-width:38px;height:38px;border-radius:9px;font-size:14px;color:var(--text)}
-.pgnav span{min-width:3.5ch;text-align:center}
+.sheeton .barno{top:auto;bottom:calc(var(--sb) + 8px);left:max(8px,var(--sl));background:rgba(15,18,23,.6)}
+.sheeton .barno .bv b{font-size:24px}
+.sheeton .barno button{width:30px;height:32px}
+.pgnav{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 10px);background:rgba(15,18,23,.55);border-radius:999px;padding:3px 10px;z-index:2;font-family:var(--f-mono);font-size:12px;color:var(--text);pointer-events:none}
+.scr.sheeton.ui .pgnav,.scr.sheeton.ui .barno{visibility:hidden}
 .edgecv{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:15}
 #bSheet{font-size:16px}
 #bSheet[aria-pressed="true"]{border-color:var(--cue);color:var(--cue)}
@@ -252,6 +280,7 @@ input[type=range]{width:100%;accent-color:var(--beat)}
   <header class="ph">
     <button id="bBack" class="back lockable">‹ 목록</button>
     <button class="ph-mid lockable" id="bTitle" aria-label="이 곡 편집"><div class="t" id="pTitle"></div><div class="sub num" id="pSub"></div></button>
+    <button id="pgFit" class="icbtn lockable" aria-label="악보 맞춤 바꾸기" hidden>쪽</button>
     <button id="bSheet" class="icbtn lockable" aria-pressed="false" aria-label="악보 보기" hidden>𝄞</button>
     <button id="bLock" class="icbtn" aria-pressed="false" aria-label="화면 잠금">🔓</button>
   </header>
@@ -266,12 +295,9 @@ input[type=range]{width:100%;accent-color:var(--beat)}
           <div class="bv"><small id="barL">마디</small><b class="num" id="barV">1</b></div>
           <button id="barPlus" class="lockable" aria-label="마디 하나 더하기">+</button>
         </div>
-        <div class="pgnav" id="pgNav" hidden>
-          <button id="pgFit" aria-label="악보 맞춤 바꾸기">폭</button>
-          <button id="pgPrev" aria-label="악보 위로">▲</button>
-          <span id="pgNo" class="num">1/1</span>
-          <button id="pgNext" aria-label="악보 아래로">▼</button>
-        </div>
+        <div class="pgnav num" id="pgNav" hidden><span id="pgNo">1/1</span></div>
+        <button class="pgside l" id="pgPrev" aria-label="이전 쪽">‹</button>
+        <button class="pgside r" id="pgNext" aria-label="다음 쪽">›</button>
       </div>
       <div class="dots" id="dots"></div>
     </div>
@@ -311,7 +337,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /* ================= 데이터 ================= */
 const KEY = 'countin.v1';
-const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true};
+const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true};
 const VIS = [['pulse','원'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자'],['edge','테두리']];
 const SOUNDS = [['wood','우드블록'],['beep','비프'],['cow','카우벨'],['stick','사이드스틱']];
 function newSong(o = {}) {
@@ -602,8 +628,9 @@ function loadPdfJs() {
     document.head.appendChild(s);
   });
 }
-const SV = {sig:null, doc:null, list:[], fit:'width', tok:0};
-try { SV.fit = localStorage.getItem('countin.fit') === 'page' ? 'page' : 'width'; } catch (e) {}
+const SV = {sig:null, doc:null, list:[], fit:'page', tok:0, per:1};
+SV.fit = 'page';
+try { if (localStorage.getItem('countin.fit') === 'width') SV.fit = 'width'; } catch (e) {}
 const sheetSig = s => s.sheet.key + '|' + (s.sheet.pages ? s.sheet.pages.join(',') : 'all');
 async function showSheet() {
   const s = song(), pages = $('#pages');
@@ -632,18 +659,23 @@ async function renderPages() {
   const tok = ++SV.tok, box = $('#sheetBox'), pages = $('#pages');
   const W = box.clientWidth, Hh = box.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
   if (W < 10 || Hh < 10) return;
-  const ratio = box.scrollHeight > box.clientHeight ? box.scrollTop / (box.scrollHeight - box.clientHeight) : 0;
-  box.classList.toggle('fitpage', SV.fit === 'page');
-  $('#pgFit').textContent = SV.fit === 'page' ? '쪽' : '폭';
+  const horiz = SV.fit === 'page';
+  const pos = horiz ? box.scrollLeft : box.scrollTop, span = horiz ? box.scrollWidth - W : box.scrollHeight - Hh;
+  const ratio = span > 0 ? pos / span : 0;
+  box.classList.toggle('fitpage', horiz);
+  $('#pgFit').textContent = horiz ? '쪽' : '폭';
+  // 가로로 넓으면 두 쪽씩 나란히
+  SV.per = horiz && W > Hh * 1.15 && SV.list.length > 1 ? 2 : 1;
+  const pw = W / SV.per;
   const frag = [];
   for (let idx = 0; idx < SV.list.length; idx++) {
     const i = idx + 1, pg = await SV.doc.getPage(SV.list[idx]);
     if (tok !== SV.tok) return;
     const v1 = pg.getViewport({scale:1});
-    const sc = SV.fit === 'width' ? W / v1.width : Math.min(W / v1.width, Hh / v1.height);
+    const sc = horiz ? Math.min(pw / v1.width, Hh / v1.height) : W / v1.width;
     const vp = pg.getViewport({scale:sc * dpr});
     const wrap = document.createElement('div'); wrap.className = 'pg';
-    if (SV.fit === 'page') wrap.style.height = Hh + 'px';
+    if (horiz) { wrap.style.width = pw + 'px'; if (idx % SV.per === 0) wrap.classList.add('snap'); if (SV.per === 2) wrap.style.justifyContent = idx % 2 ? 'flex-start' : 'flex-end'; }
     const c = document.createElement('canvas');
     c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
     c.style.width = Math.floor(v1.width * sc) + 'px'; c.style.height = Math.floor(v1.height * sc) + 'px';
@@ -651,7 +683,8 @@ async function renderPages() {
     if (i === 1) pages.innerHTML = '';
     pages.appendChild(wrap);
   }
-  if (box.scrollHeight > box.clientHeight) box.scrollTop = ratio * (box.scrollHeight - box.clientHeight);
+  if (horiz) { const sp = box.scrollWidth - W; box.scrollLeft = sp > 0 ? Math.round(ratio * sp / W) * W : 0; }
+  else if (box.scrollHeight > Hh) box.scrollTop = ratio * (box.scrollHeight - Hh);
   updPg();
   for (const [pg, c, vp] of frag) {
     if (tok !== SV.tok) return;
@@ -661,23 +694,78 @@ async function renderPages() {
 function updPg() {
   const box = $('#sheetBox'), wraps = [...$('#pages').querySelectorAll('.pg')];
   if (!wraps.length) { $('#pgNo').textContent = '-'; return; }
-  const top = box.scrollTop + box.clientHeight * .3;
-  let cur = 1; wraps.forEach((w, i) => { if (w.offsetTop <= top) cur = i + 1; });
-  $('#pgNo').textContent = `${cur}/${wraps.length}`;
+  let cur = 1;
+  if (SV.fit === 'page') {
+    const x = box.scrollLeft + box.clientWidth * .3;
+    wraps.forEach((w, i) => { if (w.offsetLeft <= x) cur = i + 1; });
+    const last = Math.min(wraps.length, cur + (SV.per || 1) - 1);
+    $('#pgNo').textContent = last > cur ? `${cur}–${last} / ${wraps.length}` : `${cur} / ${wraps.length}`;
+  } else {
+    const top = box.scrollTop + box.clientHeight * .3;
+    wraps.forEach((w, i) => { if (w.offsetTop <= top) cur = i + 1; });
+    $('#pgNo').textContent = `${cur} / ${wraps.length}`;
+  }
 }
-// 페달·버튼으로 악보 넘기기. 맨 끝에서 더 넘기면 false
+// 악보 넘기기 (쪽 맞춤은 옆으로 한 화면, 폭 맞춤은 아래로 85%). 맨 끝이면 false
 function turnPage(d) {
-  const box = $('#sheetBox'), Hh = box.clientHeight;
-  const max = box.scrollHeight - Hh;
+  const box = $('#sheetBox');
+  if (SV.fit === 'page') {
+    const W = box.clientWidth, max = box.scrollWidth - W;
+    if (d > 0 && box.scrollLeft >= max - 4) return false;
+    if (d < 0 && box.scrollLeft <= 4) return false;
+    box.scrollTo({left:clamp(Math.round(box.scrollLeft / W + d) * W, 0, max), behavior:'smooth'});
+    return true;
+  }
+  const Hh = box.clientHeight, max = box.scrollHeight - Hh;
   if (d > 0 && box.scrollTop >= max - 4) return false;
   if (d < 0 && box.scrollTop <= 4) return false;
-  box.scrollTo({top:clamp(box.scrollTop + d * (SV.fit === 'page' ? Hh : Hh * .85), 0, max), behavior:'smooth'});
+  box.scrollTo({top:clamp(box.scrollTop + d * Hh * .85, 0, max), behavior:'smooth'});
   return true;
 }
+// 넘기다 끝에 닿으면: 한 번은 알려주고, 2.5초 안에 한 번 더 넘기면 곡 이동 (무대 실수 방지)
+let edgeArm = null, edgeArmT = 0;
+function flip(d) {
+  if (turnPage(d)) { edgeArm = null; return; }
+  const list = curSL().songs, j = P.i + d;
+  if (j < 0 || j >= list.length) { toast(d > 0 ? '마지막 곡의 마지막 쪽이에요' : '첫 쪽이에요'); return; }
+  if (edgeArm === d && performance.now() - edgeArmT < 2500) { edgeArm = null; go(j); toast(`${j + 1}. ${list[j].title || '제목 없음'}`); return; }
+  edgeArm = d; edgeArmT = performance.now();
+  toast(d > 0 ? `한 번 더 넘기면 다음 곡 · ${list[j].title || '제목 없음'}` : `한 번 더 넘기면 이전 곡 · ${list[j].title || '제목 없음'}`);
+}
 $('#sheetBox').addEventListener('scroll', updPg, {passive:true});
-$('#pgPrev').onclick = () => turnPage(-1);
-$('#pgNext').onclick = () => turnPage(1);
-$('#pgFit').onclick = () => { SV.fit = SV.fit === 'width' ? 'page' : 'width'; try { localStorage.setItem('countin.fit', SV.fit); } catch (e) {} $('#sheetBox').scrollTop = 0; renderPages(); };
+$('#pgPrev').onclick = () => { flip(-1); kickUi(); };
+$('#pgNext').onclick = () => { flip(1); kickUi(); };
+$('#pgFit').onclick = () => { SV.fit = SV.fit === 'width' ? 'page' : 'width'; try { localStorage.setItem('countin.fit', SV.fit); } catch (e) {} const b = $('#sheetBox'); b.scrollTop = 0; b.scrollLeft = 0; renderPages(); kickUi(); };
+
+// 악보 화면 조작 막대: 악보를 탭하면 보이고/숨고, 재생 중엔 4초 뒤 저절로 숨김
+let uiT;
+function setUi(on) {
+  $('#scrPlay').classList.toggle('ui', on);
+  clearTimeout(uiT);
+  if (on && E.playing) uiT = setTimeout(() => setUi(false), 4000);
+}
+function kickUi() { if ($('#scrPlay').classList.contains('ui')) setUi(true); }
+['.ph', '.side'].forEach(s => $('#scrPlay').querySelector(s).addEventListener('pointerdown', kickUi));
+(() => {
+  const b = $('#sheetBox');
+  let x0 = null, y0 = 0, t0 = 0, startEdge = 0;
+  const atEnd = () => SV.fit === 'page' ? (b.scrollLeft >= b.scrollWidth - b.clientWidth - 4 ? 1 : 0) - (b.scrollLeft <= 4 ? 1 : 0) : 0;
+  const down = (x, y) => { x0 = x; y0 = y; t0 = performance.now(); startEdge = atEnd(); };
+  const up = (x, y) => {
+    if (x0 === null) return;
+    const dx = x - x0, dy = y - y0, dt = performance.now() - t0; x0 = null;
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 400) { setUi(!$('#scrPlay').classList.contains('ui')); return; }
+    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
+    const d = dx < 0 ? 1 : -1;
+    if (SV.fit !== 'page') flip(d);                 // 폭 맞춤: 옆으로 밀면 아래/위로 넘김
+    else if ((d > 0 && startEdge === 1) || (d < 0 && startEdge === -1) || SV.list.length === 1) flip(d); // 쪽 맞춤 끝에서 더 밀면
+  };
+  let lastTouch = 0;
+  b.addEventListener('touchstart', e => { lastTouch = performance.now(); const t = e.touches[0]; if (e.touches.length === 1) down(t.clientX, t.clientY); else x0 = null; }, {passive:true});
+  b.addEventListener('touchend', e => { lastTouch = performance.now(); const t = e.changedTouches[0]; up(t.clientX, t.clientY); }, {passive:true});
+  b.addEventListener('mousedown', e => { if (performance.now() - lastTouch > 800) down(e.clientX, e.clientY); });
+  b.addEventListener('mouseup', e => { if (performance.now() - lastTouch > 800) up(e.clientX, e.clientY); });
+})();
 let rsT;
 new ResizeObserver(() => { if (!P.sheetOn) return; clearTimeout(rsT); rsT = setTimeout(renderPages, 200); }).observe($('#sheetBox'));
 
@@ -725,8 +813,10 @@ function loadSong() { stop(); const s = song(); if (!s) return; P.bpm = s.bpm; P
 function applySheet() {
   const s = song(), on = P.sheetOn && !!(s && s.sheet);
   $('#scrPlay').classList.toggle('sheeton', on);
-  $('#viz').hidden = on; $('#sheetBox').hidden = !on; $('#pgNav').hidden = !on;
+  $('#viz').hidden = on; $('#sheetBox').hidden = !on; $('#pgNav').hidden = !on; $('#pgFit').hidden = !on;
   $('#bSheet').hidden = !(s && s.sheet); $('#bSheet').setAttribute('aria-pressed', on);
+  $('#scrPlay').classList.toggle('nobtns', !D.settings.pgBtns);
+  if (!on) setUi(false);
   if (on) showSheet();
 }
 function renderPlay() {
@@ -759,7 +849,11 @@ function go(i) {
   const was = E.playing; P.i = i; loadSong();
   if (was && D.settings.nextAuto) start();
 }
-$('#bPlay').onclick = () => E.playing ? stop() : start();
+$('#bPlay').onclick = () => {
+  E.playing ? stop() : start();
+  // 악보 화면에서 재생을 누르면 막대를 곧 숨겨 악보를 꽉 채움
+  if (P.sheetOn && E.playing) { clearTimeout(uiT); uiT = setTimeout(() => setUi(false), 1200); }
+};
 $('#bNext').onclick = () => go(P.i + 1);
 $('#bPrev').onclick = () => go(P.i - 1);
 $('#bBack').onclick = () => history.back();
@@ -785,7 +879,7 @@ function holdBtn(el, step) {
 holdBtn($('#bMinus'), -1); holdBtn($('#bPlus'), 1);
 
 // 스와이프로 곡 이동
-[$('#viz'), $('#sheetBox')].forEach(v => {
+[$('#viz')].forEach(v => {
   let x0 = null, y0 = 0;
   v.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; });
   v.addEventListener('pointercancel', () => { x0 = null; });
@@ -816,8 +910,8 @@ document.addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input,textarea')) return;
   const onBtn = e.target.tagName === 'BUTTON';
   if ((e.key === ' ' || e.key === 'Enter') && !onBtn) { e.preventDefault(); E.playing ? stop() : start(); }
-  else if (P.sheetOn && ['ArrowRight', 'PageDown', 'ArrowDown'].includes(e.key)) { e.preventDefault(); if (!turnPage(1)) go(P.i + 1); }
-  else if (P.sheetOn && ['ArrowLeft', 'PageUp', 'ArrowUp'].includes(e.key)) { e.preventDefault(); turnPage(-1); }
+  else if (P.sheetOn && ['ArrowRight', 'PageDown', 'ArrowDown'].includes(e.key)) { e.preventDefault(); flip(1); }
+  else if (P.sheetOn && ['ArrowLeft', 'PageUp', 'ArrowUp'].includes(e.key)) { e.preventDefault(); flip(-1); }
   else if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); go(P.i + 1); }
   else if ((e.key === 'ArrowLeft' || e.key === 'PageUp') && !P.locked) { e.preventDefault(); go(P.i - 1); }
   else if (e.key === 'ArrowUp' && !P.locked) { e.preventDefault(); setBpm(P.bpm + 1); }
@@ -965,7 +1059,7 @@ H.seg = b => {
 H.tgl = b => {
   const k = b.dataset.k, on = b.getAttribute('aria-checked') !== 'true';
   b.setAttribute('aria-checked', on);
-  if (sheetKind === 'settings') { D.settings[k] = on; save(); if (k === 'wake') on ? requestWake() : releaseWake(); }
+  if (sheetKind === 'settings') { D.settings[k] = on; save(); if (k === 'wake') on ? requestWake() : releaseWake(); if (k === 'pgBtns') $('#scrPlay').classList.toggle('nobtns', !on); }
   else draft[k] = on;
 };
 H.bpm = b => { syncDraft(); draft.bpm = clamp(draft.bpm + +b.dataset.v, 20, 300); $('#fBpm').value = draft.bpm; };
@@ -1135,6 +1229,7 @@ function renderSettings() {
     ${canVib ? '' : '<p class="note">이 폰(브라우저)은 진동을 지원하지 않아요. 아이폰 웹앱은 진동이 안 돼요.</p>'}
     ${tgl('showBar', '마디 번호 표시', S.showBar, '본박부터 1마디. 반복 구간에서 어긋나면 ±로 맞춰요')}
     ${tgl('sheetAuto', '악보 있는 곡은 악보 화면으로 열기', S.sheetAuto, '악보 화면에선 화면 테두리가 박을 보여줘요')}
+    ${tgl('pgBtns', '악보 위 ‹ › 넘김 버튼', S.pgBtns, '끄면 옆으로 밀기·페달로만 넘겨요')}
     ${tgl('wake', '재생 화면에서 화면 꺼짐 방지', S.wake)}
     ${tgl('nextAuto', '재생 중 다음 곡으로 넘기면 바로 시작', S.nextAuto, '끄면 넘긴 뒤 정지 상태로 기다려요')}
     <div class="sec-t">악보함 (PDF)</div>
@@ -1149,7 +1244,7 @@ function renderSettings() {
     <div class="sec-t">조작</div>
     <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전. 악보 화면에선 페달이 악보를 넘기고, 마지막에서 한 번 더 누르면 다음 곡.</p>
     <p class="note">분할 화면이나 작은 창으로 띄우면 버튼만 남은 작은 배치로 바뀌어요.</p>
-    <p class="note" style="color:var(--dim)">카운트인 v1.3 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v1.4 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
