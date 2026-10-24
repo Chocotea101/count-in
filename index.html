@@ -74,7 +74,30 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--beat);outline-o
 .pbody{flex:1;min-height:0;display:flex;flex-direction:column}
 .vwrap{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 10px}
 .memo{align-self:flex-start;margin:4px 2px 6px;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:3px 9px;color:var(--text);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.viz{position:relative;flex:1;min-height:150px;border-radius:22px;background:var(--raise);overflow:hidden;touch-action:pan-y}
+.stage{position:relative;flex:1;min-height:150px;display:flex}
+.viz{position:relative;flex:1;min-width:0;border-radius:22px;background:var(--raise);overflow:hidden;touch-action:pan-y}
+.sheetbox{flex:1;min-width:0;border-radius:14px;background:var(--raise);overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;position:relative}
+.sheetbox{touch-action:pan-y pinch-zoom}
+.sheetbox.fitpage{scroll-snap-type:y mandatory}
+.pages{display:flex;flex-direction:column;align-items:center;gap:8px;padding-bottom:40vh}
+.fitpage .pages{gap:0;padding-bottom:0}
+.pg{display:flex;align-items:center;justify-content:center;width:100%;scroll-snap-align:start}
+.pg canvas{display:block;background:#fff}
+.sheetmsg{margin:auto;padding:40px 20px;text-align:center;color:var(--mute);font-size:14px;line-height:1.6}
+.barno{position:absolute;left:8px;top:8px;display:flex;align-items:center;gap:2px;background:rgba(15,18,23,.82);border:1px solid var(--line);border-radius:12px;padding:2px;z-index:2}
+.barno button{width:34px;height:38px;border-radius:9px;font-size:18px;color:var(--mute)}
+.barno .bv{min-width:3ch;text-align:center;line-height:1;padding:0 2px}
+.barno .bv b{display:block;font-family:var(--f-num);font-weight:800;font-size:30px}
+.barno .bv small{font-family:var(--f-mono);font-size:9px;color:var(--mute);letter-spacing:.1em}
+.barno.cnt .bv b{color:var(--cue)}
+.sheeton .barno{top:auto;bottom:8px}
+.pgnav{position:absolute;right:8px;bottom:8px;display:flex;align-items:center;gap:2px;background:rgba(15,18,23,.82);border:1px solid var(--line);border-radius:12px;padding:2px;z-index:2;font-family:var(--f-mono);font-size:12px;color:var(--mute)}
+.pgnav button{min-width:38px;height:38px;border-radius:9px;font-size:14px;color:var(--text)}
+.pgnav span{min-width:3.5ch;text-align:center}
+.edgecv{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:15}
+#bSheet{font-size:16px}
+#bSheet[aria-pressed="true"]{border-color:var(--cue);color:var(--cue)}
+.sheeton .modes,.sheeton .nextup,.sheeton #bTap,.sheeton .memo{display:none!important}
 .viz canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .vizlbl{position:absolute;left:0;right:0;top:12px;text-align:center;font-family:var(--f-mono);font-size:12px;color:var(--mute);letter-spacing:.08em;pointer-events:none}
 .dots{display:flex;justify-content:center;gap:6px;padding:12px 0 2px}
@@ -112,6 +135,40 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--beat);outline-o
   .modes{padding-top:12px}
   .ctrl .main{width:64px;height:64px}
 }
+
+/* 작은 창: 분할 화면·팝업 창에서 악보 옆에 띄울 때 */
+@media (max-width:360px){
+  .bpmbox .big{font-size:52px}
+  .rbtn{width:44px;height:44px}
+  .ctrl > button{min-width:44px}
+  .ctrl .main{width:66px;height:66px}
+}
+@media (max-height:520px) and (max-width:820px), (max-height:380px){
+  .ph{padding:4px 8px 0;gap:6px}
+  .ph-mid .t{font-size:15px}
+  .ph-mid .sub{display:none}
+  .back{font-size:13px;padding:4px}
+  .ph .icbtn{width:32px;height:32px;font-size:14px}
+  .memo,.modes,.nextup,.lockhint,#bTap{display:none!important}
+  .pbody{flex-direction:row}
+  .vwrap{padding:4px 4px 6px 8px}
+  .stage{min-height:60px}
+  .viz{border-radius:14px}
+  .dots{padding-top:6px}
+  .dots span{height:7px}
+  .side{width:auto;flex:0 1 auto;max-width:50%;min-width:0;justify-content:center;padding:0 6px 0 2px;overflow:visible}
+  .bpmrow{gap:6px;padding:0}
+  .bpmbox .big{font-size:38px}
+  .rbtn{width:38px;height:38px;font-size:18px}
+  .savebpm{bottom:-18px}
+  .ctrl{padding:6px 0 4px;gap:2px;justify-content:center}
+  .ctrl > button{min-width:40px;font-size:0}
+  .ctrl .ic{font-size:20px}
+  .ctrl .main{width:52px;height:52px;font-size:20px}
+  .barno button{width:28px;height:30px}
+  .barno .bv b{font-size:24px}
+}
+@media (max-height:300px){ .ph{display:none} }
 
 /* ---------- 시트 ---------- */
 .shw{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20}
@@ -182,12 +239,27 @@ input[type=range]{width:100%;accent-color:var(--beat)}
   <header class="ph">
     <button id="bBack" class="back lockable">‹ 목록</button>
     <button class="ph-mid lockable" id="bTitle" aria-label="이 곡 편집"><div class="t" id="pTitle"></div><div class="sub num" id="pSub"></div></button>
+    <button id="bSheet" class="icbtn lockable" aria-pressed="false" aria-label="악보 보기" hidden>𝄞</button>
     <button id="bLock" class="icbtn" aria-pressed="false" aria-label="화면 잠금">🔓</button>
   </header>
   <div class="pbody">
     <div class="vwrap">
       <div class="memo" id="pMemo" hidden></div>
-      <div class="viz" id="viz"><canvas id="cv"></canvas><div class="vizlbl" id="vizLbl"></div></div>
+      <div class="stage">
+        <div class="viz" id="viz"><canvas id="cv"></canvas><div class="vizlbl" id="vizLbl"></div></div>
+        <div class="sheetbox" id="sheetBox" hidden><div class="pages" id="pages"></div></div>
+        <div class="barno" id="barNo" hidden>
+          <button id="barMinus" class="lockable" aria-label="마디 하나 빼기">−</button>
+          <div class="bv"><small id="barL">마디</small><b class="num" id="barV">1</b></div>
+          <button id="barPlus" class="lockable" aria-label="마디 하나 더하기">+</button>
+        </div>
+        <div class="pgnav" id="pgNav" hidden>
+          <button id="pgFit" aria-label="악보 맞춤 바꾸기">폭</button>
+          <button id="pgPrev" aria-label="악보 위로">▲</button>
+          <span id="pgNo" class="num">1/1</span>
+          <button id="pgNext" aria-label="악보 아래로">▼</button>
+        </div>
+      </div>
       <div class="dots" id="dots"></div>
     </div>
     <div class="side">
@@ -210,6 +282,8 @@ input[type=range]{width:100%;accent-color:var(--beat)}
   </div>
 </section>
 
+<canvas id="edgeCv" class="edgecv" hidden></canvas>
+<input type="file" id="pdfIn" accept="application/pdf,.pdf" hidden>
 <div id="shw" class="shw" hidden><div id="sheet" class="sheet" role="dialog" aria-modal="true"></div></div>
 <div id="toast" class="toast" hidden></div>
 <input type="file" id="fileIn" accept="application/json,.json" hidden>
@@ -224,11 +298,11 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /* ================= 데이터 ================= */
 const KEY = 'countin.v1';
-const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false};
-const VIS = [['pulse','원'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자']];
+const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true};
+const VIS = [['pulse','원'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자'],['edge','테두리']];
 const SOUNDS = [['wood','우드블록'],['beep','비프'],['cow','카우벨'],['stick','사이드스틱']];
 function newSong(o = {}) {
-  return Object.assign({id:uid(), title:'', bpm:100, num:4, den:4, pulse:'eighth', sub:'none', countIn:2, muteAfter:false, accent:true, visual:null, memo:''}, o);
+  return Object.assign({id:uid(), title:'', bpm:100, num:4, den:4, pulse:'eighth', sub:'none', countIn:2, muteAfter:false, accent:true, visual:null, memo:'', sheet:null}, o);
 }
 function seed() {
   const s = {id:uid(), name:'예시 셋리스트', songs:[
@@ -257,7 +331,7 @@ const bpb = s => isDotted(s) ? s.num / 3 : s.num;
 const subsOf = s => ({none:1, '8':2, '3':3, '16':4})[s.sub] || 1;
 const SUBL = {none:'', '8':'8분', '3':'3연음', '16':'16분'};
 const sigL = s => `${s.num}/${s.den}` + (isDotted(s) ? ' (점4분)' : '');
-const meta = s => [sigL(s), SUBL[s.sub], s.countIn ? `카운트 ${s.countIn}마디` : '', s.memo].filter(Boolean).join(' · ');
+const meta = s => [s.sheet ? '𝄞 악보' : '', sigL(s), SUBL[s.sub], s.countIn ? `카운트 ${s.countIn}마디` : '', s.memo].filter(Boolean).join(' · ');
 
 /* ================= 공통 UI ================= */
 let toastT;
@@ -338,7 +412,7 @@ catch (e) { setInterval(schedule, 25); }
 function start() {
   if (!song()) return;
   ensureCtx();
-  E.spb = 60 / P.bpm; E.start = E.ctx.currentTime + .15; E.n = 0; E.sub = 0; E.playing = true;
+  E.spb = 60 / P.bpm; E.start = E.ctx.currentTime + .15; E.n = 0; E.sub = 0; E.playing = true; P.barOff = 0;
   updPlayBtn();
 }
 function stop() { E.playing = false; updPlayBtn(); }
@@ -352,8 +426,8 @@ function beatNow() {
 const COL = (() => { const cs = getComputedStyle(document.documentElement), g = k => cs.getPropertyValue(k).trim(); return {raise:g('--raise'), line:g('--line'), text:g('--text'), mute:g('--mute'), dim:g('--dim'), beat:g('--beat'), down:g('--down'), cue:g('--cue'), ink:g('--ink')}; })();
 const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
 const NUMF = getComputedStyle(document.documentElement).getPropertyValue('--f-num');
-function fit(cv) {
-  const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2.5);
+function fit(cv, maxD = 2.5) {
+  const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, maxD);
   const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   return cv.getContext('2d');
@@ -393,6 +467,11 @@ function draw(cv, mode, b, beats, o) {
     for (let j = 0; j < beats; j++) { g.beginPath(); g.ellipse(sx(j), floor + m * .05, Math.min(m * .07, step * .4 || m * .07), m * .022, 0, 0, 7); g.fillStyle = j === k && !o.idle ? rgba(j === 0 ? COL.down : COL.beat, .3 + .7 * hit) : COL.line; g.fill(); }
     const to = (k + 1) % beats, x = sx(k) + (sx(to) - sx(k)) * (o.idle ? 0 : ph), y = floor - Math.sin(Math.PI * (o.idle ? 0 : ph)) * H * .55;
     g.beginPath(); g.arc(x, y, m * .065, 0, 7); g.fillStyle = to === 0 && ph > .5 ? COL.down : COL.text; g.fill();
+  } else if (mode === 'edge') {
+    // 박은 화면 테두리(edgeCv)가 보여주고, 가운데는 지금 박 번호만 조용히
+    g.globalAlpha = o.idle ? .35 : .45 + .55 * hit;
+    g.fillStyle = o.idle ? COL.dim : col; g.font = `800 ${m * .4}px ${NUMF}`;
+    g.fillText(String(k + 1), W / 2, H / 2);
   } else {
     g.fillStyle = col; g.font = `800 ${m * .58 * (1 + .16 * hit)}px ${NUMF}`;
     g.fillText(String(k + 1), W / 2, H * .45);
@@ -401,6 +480,137 @@ function draw(cv, mode, b, beats, o) {
   }
   g.globalAlpha = 1;
 }
+
+// 화면 전체 테두리 빛: 악보를 보면서 곁눈으로 박을 잡도록
+function drawEdge(cv, b, beats, o) {
+  const g = fit(cv, 1), W = cv.width, H = cv.height, m = Math.min(W, H);
+  g.clearRect(0, 0, W, H);
+  const idx = Math.floor(b), ph = b - idx, k = ((idx % beats) + beats) % beats;
+  const col = o.counting ? COL.cue : k === 0 ? COL.down : COL.beat, hit = Math.pow(1 - ph, 2.2);
+  const lw = m * (o.loud ? .045 : .032) * (1 + .5 * hit);
+  g.globalAlpha = .12 + .88 * hit; g.strokeStyle = col; g.lineWidth = lw;
+  g.shadowColor = col; g.shadowBlur = lw * 1.2;
+  g.beginPath();
+  if (g.roundRect) g.roundRect(lw / 2, lw / 2, W - lw, H - lw, m * .06); else g.rect(lw / 2, lw / 2, W - lw, H - lw);
+  g.stroke(); g.shadowBlur = 0; g.globalAlpha = 1;
+}
+
+/* ================= 악보 PDF ================= */
+const IDB = {
+  db: null,
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('countin', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('sheets');
+      r.onsuccess = () => { this.db = r.result; res(this.db); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async tx(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => { const q = fn(db.transaction('sheets', mode).objectStore('sheets')); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+  },
+  get(k) { return this.tx('readonly', s => s.get(k)); },
+  put(k, v) { return this.tx('readwrite', s => s.put(v, k)); },
+  del(k) { return this.tx('readwrite', s => s.delete(k)); },
+  keys() { return this.tx('readonly', s => s.getAllKeys()); },
+};
+// 어떤 곡도 쓰지 않는 악보 파일 지우기 (복제된 곡은 같은 파일을 함께 씀)
+async function gcSheets() {
+  try {
+    const used = new Set(D.setlists.flatMap(x => x.songs.map(s => s.sheet && s.sheet.key).filter(Boolean)));
+    for (const k of await IDB.keys()) if (!used.has(k)) await IDB.del(k);
+  } catch (e) {}
+}
+let pdfLib = null;
+function loadPdfJs() {
+  if (pdfLib) return Promise.resolve(pdfLib);
+  return new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = 'vendor/pdf.min.js';
+    s.onload = () => { pdfLib = window.pdfjsLib; pdfLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js'; res(pdfLib); };
+    s.onerror = () => rej(new Error('pdf.js'));
+    document.head.appendChild(s);
+  });
+}
+const SV = {key:null, doc:null, fit:'width', tok:0};
+try { SV.fit = localStorage.getItem('countin.fit') === 'page' ? 'page' : 'width'; } catch (e) {}
+async function showSheet() {
+  const s = song(), pages = $('#pages');
+  if (!s || !s.sheet) return;
+  if (SV.key !== s.sheet.key || !SV.doc) {
+    if (SV.doc) { try { SV.doc.destroy(); } catch (e) {} }
+    SV.doc = null; SV.key = null;
+    pages.innerHTML = '<p class="sheetmsg">악보 여는 중…</p>';
+    const want = s.sheet.key;
+    try {
+      const buf = await IDB.get(want);
+      if (!buf) throw new Error('missing');
+      const lib = await loadPdfJs();
+      const doc = await lib.getDocument({data:new Uint8Array(buf)}).promise;
+      if (!song() || !song().sheet || song().sheet.key !== want) { doc.destroy(); return; }
+      SV.doc = doc; SV.key = want;
+    } catch (e) {
+      pages.innerHTML = `<p class="sheetmsg">${e.message === 'missing' ? '이 기기에 악보 파일이 없어요.<br>곡 편집에서 PDF를 다시 넣어 주세요.' : '악보를 열지 못했어요.<br>PDF 파일이 맞는지 확인해 주세요.'}</p>`;
+      updPg(); return;
+    }
+    $('#sheetBox').scrollTop = 0;
+  }
+  await renderPages();
+}
+async function renderPages() {
+  if (!SV.doc) return;
+  const tok = ++SV.tok, box = $('#sheetBox'), pages = $('#pages');
+  const W = box.clientWidth, Hh = box.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+  if (W < 10 || Hh < 10) return;
+  const ratio = box.scrollHeight > box.clientHeight ? box.scrollTop / (box.scrollHeight - box.clientHeight) : 0;
+  box.classList.toggle('fitpage', SV.fit === 'page');
+  $('#pgFit').textContent = SV.fit === 'page' ? '쪽' : '폭';
+  const frag = [];
+  for (let i = 1; i <= SV.doc.numPages; i++) {
+    const pg = await SV.doc.getPage(i);
+    if (tok !== SV.tok) return;
+    const v1 = pg.getViewport({scale:1});
+    const sc = SV.fit === 'width' ? W / v1.width : Math.min(W / v1.width, Hh / v1.height);
+    const vp = pg.getViewport({scale:sc * dpr});
+    const wrap = document.createElement('div'); wrap.className = 'pg';
+    if (SV.fit === 'page') wrap.style.height = Hh + 'px';
+    const c = document.createElement('canvas');
+    c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+    c.style.width = Math.floor(v1.width * sc) + 'px'; c.style.height = Math.floor(v1.height * sc) + 'px';
+    wrap.appendChild(c); frag.push([pg, c, vp]);
+    if (i === 1) pages.innerHTML = '';
+    pages.appendChild(wrap);
+  }
+  if (box.scrollHeight > box.clientHeight) box.scrollTop = ratio * (box.scrollHeight - box.clientHeight);
+  updPg();
+  for (const [pg, c, vp] of frag) {
+    if (tok !== SV.tok) return;
+    try { await pg.render({canvasContext:c.getContext('2d'), viewport:vp}).promise; } catch (e) {}
+  }
+}
+function updPg() {
+  const box = $('#sheetBox'), wraps = [...$('#pages').querySelectorAll('.pg')];
+  if (!wraps.length) { $('#pgNo').textContent = '-'; return; }
+  const top = box.scrollTop + box.clientHeight * .3;
+  let cur = 1; wraps.forEach((w, i) => { if (w.offsetTop <= top) cur = i + 1; });
+  $('#pgNo').textContent = `${cur}/${wraps.length}`;
+}
+// 페달·버튼으로 악보 넘기기. 맨 끝에서 더 넘기면 false
+function turnPage(d) {
+  const box = $('#sheetBox'), Hh = box.clientHeight;
+  const max = box.scrollHeight - Hh;
+  if (d > 0 && box.scrollTop >= max - 4) return false;
+  if (d < 0 && box.scrollTop <= 4) return false;
+  box.scrollTo({top:clamp(box.scrollTop + d * (SV.fit === 'page' ? Hh : Hh * .85), 0, max), behavior:'smooth'});
+  return true;
+}
+$('#sheetBox').addEventListener('scroll', updPg, {passive:true});
+$('#pgPrev').onclick = () => turnPage(-1);
+$('#pgNext').onclick = () => turnPage(1);
+$('#pgFit').onclick = () => { SV.fit = SV.fit === 'width' ? 'page' : 'width'; try { localStorage.setItem('countin.fit', SV.fit); } catch (e) {} $('#sheetBox').scrollTop = 0; renderPages(); };
+let rsT;
+new ResizeObserver(() => { if (!P.sheetOn) return; clearTimeout(rsT); rsT = setTimeout(renderPages, 200); }).observe($('#sheetBox'));
 
 /* ================= 셋리스트 화면 ================= */
 let orderMode = false;
@@ -431,7 +641,7 @@ $('#bSettings').onclick = openSettings;
 $('#slPick').onclick = openSetlists;
 
 /* ================= 플레이 화면 ================= */
-const P = {i:0, bpm:100, locked:false};
+const P = {i:0, bpm:100, locked:false, barOff:0, sheetOn:false};
 const song = () => curSL().songs[P.i];
 const effMode = s => s.visual || D.settings.visual;
 function show(name) { $('#scrList').hidden = name !== 'list'; $('#scrPlay').hidden = name !== 'play'; }
@@ -442,7 +652,14 @@ function openPlay(i, autoplay) {
   if (autoplay) start();
 }
 function closePlay() { stop(); setLock(false); show('list'); renderList(); releaseWake(); }
-function loadSong() { stop(); const s = song(); if (!s) return; P.bpm = s.bpm; renderPlay(); }
+function loadSong() { stop(); const s = song(); if (!s) return; P.bpm = s.bpm; P.barOff = 0; P.sheetOn = !!s.sheet && D.settings.sheetAuto; renderPlay(); }
+function applySheet() {
+  const s = song(), on = P.sheetOn && !!(s && s.sheet);
+  $('#scrPlay').classList.toggle('sheeton', on);
+  $('#viz').hidden = on; $('#sheetBox').hidden = !on; $('#pgNav').hidden = !on;
+  $('#bSheet').hidden = !(s && s.sheet); $('#bSheet').setAttribute('aria-pressed', on);
+  if (on) showSheet();
+}
 function renderPlay() {
   const s = song(), list = curSL().songs; if (!s) return;
   $('#pTitle').textContent = s.title || '제목 없음';
@@ -455,7 +672,11 @@ function renderPlay() {
   dots.innerHTML = Array.from({length:B}, (_, j) => `<span${j === 0 ? ' class="d"' : ''}></span>`).join('');
   $('#modes').innerHTML = VIS.map(([v, l]) => `<button data-m="${v}" aria-pressed="${effMode(s) === v}">${l}</button>`).join('');
   updBpm(); updSnd(); updPlayBtn(); lastK = -2;
+  applySheet();
 }
+$('#bSheet').onclick = () => { P.sheetOn = !P.sheetOn; applySheet(); };
+$('#barMinus').onclick = () => { P.barOff--; };
+$('#barPlus').onclick = () => { P.barOff++; };
 function updBpm() { $('#pBpm').textContent = P.bpm; const s = song(); $('#bSaveBpm').hidden = !s || s.bpm === P.bpm; }
 function updSnd() { const on = D.settings.soundOn; $('#bSnd').setAttribute('aria-pressed', on); $('#bSnd .ic').textContent = on ? '🔊' : '🔇'; $('#sndLbl').textContent = on ? '소리' : '무음'; }
 function updPlayBtn() { const b = $('#bPlay'); b.textContent = E.playing ? '❚❚' : '▶'; b.setAttribute('aria-label', E.playing ? '정지' : '재생'); }
@@ -495,16 +716,16 @@ function holdBtn(el, step) {
 holdBtn($('#bMinus'), -1); holdBtn($('#bPlus'), 1);
 
 // 스와이프로 곡 이동
-(() => {
+[$('#viz'), $('#sheetBox')].forEach(v => {
   let x0 = null, y0 = 0;
-  const v = $('#viz');
   v.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; });
+  v.addEventListener('pointercancel', () => { x0 = null; });
   v.addEventListener('pointerup', e => {
     if (x0 === null) return; const dx = e.clientX - x0, dy = e.clientY - y0; x0 = null;
     if (Math.abs(dx) < 70 || Math.abs(dy) > 60) return;
     if (dx < 0) go(P.i + 1); else if (!P.locked) go(P.i - 1);
   });
-})();
+});
 
 // 잠금: 누르면 잠기고, 길게 눌러야 풀림
 function setLock(on) {
@@ -526,6 +747,8 @@ document.addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input,textarea')) return;
   const onBtn = e.target.tagName === 'BUTTON';
   if ((e.key === ' ' || e.key === 'Enter') && !onBtn) { e.preventDefault(); E.playing ? stop() : start(); }
+  else if (P.sheetOn && ['ArrowRight', 'PageDown', 'ArrowDown'].includes(e.key)) { e.preventDefault(); if (!turnPage(1)) go(P.i + 1); }
+  else if (P.sheetOn && ['ArrowLeft', 'PageUp', 'ArrowUp'].includes(e.key)) { e.preventDefault(); turnPage(-1); }
   else if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); go(P.i + 1); }
   else if ((e.key === 'ArrowLeft' || e.key === 'PageUp') && !P.locked) { e.preventDefault(); go(P.i - 1); }
   else if (e.key === 'ArrowUp' && !P.locked) { e.preventDefault(); setBpm(P.bpm + 1); }
@@ -551,22 +774,35 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 let lastK = -2;
 function frame() {
   requestAnimationFrame(frame);
-  if ($('#scrPlay').hidden) return;
+  const ec = $('#edgeCv');
+  if ($('#scrPlay').hidden) { if (!ec.hidden) ec.hidden = true; return; }
   const s = song(); if (!s) return;
-  const B = bpb(s), cin = s.countIn * B, mode = effMode(s), subs = subsOf(s);
-  let b = beatNow(), k = -1, counting = false, lbl = '';
+  const sheetOn = P.sheetOn && !!s.sheet;
+  const B = bpb(s), cin = s.countIn * B, mode = sheetOn ? 'edge' : effMode(s), subs = subsOf(s);
+  let b = beatNow(), k = -1, counting = false, lbl = '', audible = false, bar = 0;
   if (b === null || b < 0) {
-    draw($('#cv'), mode, 0, B, {idle:true, subs, loud:false});
+    if (!sheetOn) draw($('#cv'), mode, 0, B, {idle:true, subs, loud:false});
     lbl = b === null ? '▶ 를 누르면 ' + (s.countIn ? `카운트 ${s.countIn}마디 후 시작` : '바로 시작') : '';
   } else {
     counting = b < cin;
-    const audible = D.settings.soundOn && (counting || !s.muteAfter);
-    draw($('#cv'), mode, b, B, {loud:!audible, subs, counting});
+    audible = D.settings.soundOn && (counting || !s.muteAfter);
+    if (!sheetOn) draw($('#cv'), mode, b, B, {loud:!audible, subs, counting});
     k = Math.floor(b) % B;
     if (counting) lbl = `카운트인 ${Math.floor(b / B) + 1} / ${s.countIn}`;
-    else if (!audible) lbl = '무음 · 화면으로 박 표시';
+    else { bar = Math.max(1, Math.floor((b - cin) / B) + 1 + P.barOff); if (!audible) lbl = '무음 · 화면으로 박 표시'; }
   }
   $('#vizLbl').textContent = lbl;
+  // 테두리 빛 (테두리 비주얼이거나 악보 화면일 때)
+  if (mode === 'edge' && b !== null && b >= 0) { ec.hidden = false; drawEdge(ec, b, B, {loud:!audible, counting}); }
+  else if (!ec.hidden) ec.hidden = true;
+  // 마디 번호: 카운트인 중엔 카운트 마디, 본박부터는 1마디부터
+  const bn = $('#barNo'), showBar = D.settings.showBar && (bar > 0 || counting);
+  if (bn.hidden === showBar) bn.hidden = !showBar;
+  if (showBar) {
+    const txt = counting ? String(Math.floor(b / B) + 1) : String(bar), l = counting ? '카운트' : '마디';
+    if ($('#barV').textContent !== txt) $('#barV').textContent = txt;
+    if ($('#barL').textContent !== l) { $('#barL').textContent = l; bn.classList.toggle('cnt', counting); }
+  }
   const key = k + (counting ? 100 : 0);
   if (key !== lastK) {
     lastK = key;
@@ -636,6 +872,11 @@ function renderEditor() {
     ${tgl('accent', '첫 박 강조', d.accent)}
     ${seg('visual', '이 곡 비주얼', [['', '기본'], ...VIS], d.visual || '')}
     <label class="fld"><span>메모 (재생 화면에 표시)</span><input id="fMemo" type="text" value="${esc(d.memo)}" placeholder="예: 브릿지 하프타임" maxlength="40" autocomplete="off"></label>
+    ${(() => { const nm = d._pdf ? d._pdf.name : (!d._rmPdf && d.sheet ? d.sheet.name : '');
+      return `<div class="fld"><span>악보 PDF (재생 화면에서 악보로 보기)</span><div class="row2">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${nm ? 'var(--text)' : 'var(--mute)'}">${nm ? '𝄞 ' + esc(nm) : '없음'}</span>
+        <button type="button" class="pill" style="flex:0 0 auto" data-act="pickPdf">${nm ? '바꾸기' : 'PDF 넣기'}</button>
+        ${nm ? '<button type="button" class="pill danger" style="flex:0 0 auto" data-act="rmPdf">빼기</button>' : ''}</div></div>`; })()}
     ${draftIdx >= 0 ? `<div class="sh-actions"><button type="button" data-act="dupSong">복제</button><button type="button" class="danger" data-act="delSong">${delArm ? '한 번 더 누르면 삭제' : '삭제'}</button></div>` : ''}
   </div>`;
 }
@@ -663,15 +904,37 @@ H.tap = () => {
   if (!edTap) edTap = makeTapper((v, n) => { if (v) { draft.bpm = clamp(v, 20, 300); $('#fBpm').value = draft.bpm; $('#fTap').textContent = `${draft.bpm} BPM · ${n}번`; } else $('#fTap').textContent = `계속 두드리세요 · ${n}번`; });
   edTap();
 };
-H.saveSong = () => {
+H.pickPdf = () => { syncDraft(); $('#pdfIn').click(); };
+H.rmPdf = () => { syncDraft(); draft._pdf = null; draft._rmPdf = true; const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st; };
+$('#pdfIn').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f || !draft) return;
+  if (f.type && f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)) { toast('PDF 파일만 넣을 수 있어요'); return; }
+  draft._pdf = {buf: await f.arrayBuffer(), name: f.name.replace(/\.pdf$/i, '')};
+  draft._rmPdf = false;
+  const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st;
+};
+let saving = false;
+H.saveSong = async () => {
+  if (saving) return;
   syncDraft();
-  const s = {...draft}; delete s._custom;
+  const s = {...draft}; delete s._custom; delete s._pdf; delete s._rmPdf;
   s.title = s.title.trim(); s.memo = s.memo.trim();
   if (!isDotted(s)) s.pulse = 'eighth';
+  if (draft._rmPdf) s.sheet = null;
+  if (draft._pdf) {
+    saving = true;
+    try {
+      const key = 'pdf_' + uid();
+      await IDB.put(key, draft._pdf.buf);
+      s.sheet = {key, name:draft._pdf.name};
+      try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+    } catch (e) { saving = false; toast('악보를 저장하지 못했어요 (저장 공간 확인)'); return; }
+    saving = false;
+  }
   const songs = curSL().songs;
   if (draftIdx >= 0) songs[draftIdx] = s; else songs.push(s);
-  save(); closeSheet(); renderList(); edTap = null;
-  if (!$('#scrPlay').hidden && draftIdx === P.i) { stop(); P.bpm = s.bpm; renderPlay(); }
+  save(); closeSheet(); renderList(); edTap = null; gcSheets();
+  if (!$('#scrPlay').hidden && draftIdx === P.i) { stop(); P.bpm = s.bpm; if (draft._pdf) P.sheetOn = true; renderPlay(); }
   toast('저장했어요');
 };
 H.dupSong = () => {
@@ -680,7 +943,7 @@ H.dupSong = () => {
 };
 H.delSong = () => {
   if (!delArm) { delArm = true; syncDraft(); renderEditor(); return; }
-  const songs = curSL().songs; songs.splice(draftIdx, 1); save(); closeSheet(); renderList();
+  const songs = curSL().songs; songs.splice(draftIdx, 1); save(); closeSheet(); renderList(); gcSheets();
   if (!$('#scrPlay').hidden) { if (!songs.length) { history.back(); } else { P.i = Math.min(P.i, songs.length - 1); loadSong(); } }
   toast('삭제했어요');
 };
@@ -707,7 +970,7 @@ H.dupSL = () => { const c = curSL(), x = {id:uid(), name:c.name + ' 복사', son
 H.delSL = () => {
   if (D.setlists.length < 2) return;
   if (!slDelArm) { slDelArm = true; renderSetlists(); return; }
-  D.setlists = D.setlists.filter(x => x.id !== D.cur); D.cur = D.setlists[0].id; save(); renderList(); closeSheet(); toast('삭제했어요');
+  D.setlists = D.setlists.filter(x => x.id !== D.cur); D.cur = D.setlists[0].id; save(); renderList(); closeSheet(); gcSheets(); toast('삭제했어요');
 };
 
 /* ---------- 설정 ---------- */
@@ -724,14 +987,17 @@ function renderSettings() {
     <label class="fld"><span>쪼개기 볼륨</span><input id="sSub" type="range" min="0" max="1" step="0.05" value="${S.subVol}"></label>
     ${seg('vibrate', '소리 꺼졌을 때 진동', [['off', '끔'], ['down', '첫 박만'], ['all', '매 박']], S.vibrate)}
     ${canVib ? '' : '<p class="note">이 폰(브라우저)은 진동을 지원하지 않아요. 아이폰 웹앱은 진동이 안 돼요.</p>'}
+    ${tgl('showBar', '마디 번호 표시', S.showBar, '본박부터 1마디. 반복 구간에서 어긋나면 ±로 맞춰요')}
+    ${tgl('sheetAuto', '악보 있는 곡은 악보 화면으로 열기', S.sheetAuto, '악보 화면에선 화면 테두리가 박을 보여줘요')}
     ${tgl('wake', '재생 화면에서 화면 꺼짐 방지', S.wake)}
     ${tgl('nextAuto', '재생 중 다음 곡으로 넘기면 바로 시작', S.nextAuto, '끄면 넘긴 뒤 정지 상태로 기다려요')}
     <div class="sec-t">백업</div>
     <div class="sh-actions" style="padding-top:0"><button type="button" data-act="exportD">내보내기</button><button type="button" data-act="importD">불러오기</button></div>
-    <p class="note">불러온 셋리스트는 지금 목록에 추가돼요 (기존 것은 그대로).</p>
+    <p class="note">불러온 셋리스트는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
-    <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전</p>
-    <p class="note" style="color:var(--dim)">카운트인 v1.1 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전. 악보 화면에선 페달이 악보를 넘기고, 마지막에서 한 번 더 누르면 다음 곡.</p>
+    <p class="note">분할 화면이나 작은 창으로 띄우면 버튼만 남은 작은 배치로 바뀌어요.</p>
+    <p class="note" style="color:var(--dim)">카운트인 v1.2 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
