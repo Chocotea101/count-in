@@ -284,6 +284,23 @@ input[type=range]{width:100%;accent-color:var(--beat)}
 .thumb.on{outline-color:var(--beat)}
 .thumb.on .ord{display:flex}
 .thumb .usedby{position:absolute;left:4px;top:4px;background:var(--cue);color:var(--ink);font-size:10px;font-weight:600;border-radius:5px;padding:1px 5px}
+.prow{display:grid;grid-template-columns:40px minmax(0,1fr) 76px;gap:10px;align-items:center;background:var(--raise);border-radius:12px;padding:8px 10px}
+.prow.off{opacity:.45}
+.prow .pchk{width:36px;height:36px;border-radius:10px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center}
+.prow .pchk[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
+.prow b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow small{font-size:12px;color:var(--mute)}
+.prow small.past{color:var(--cue)}
+.prow input{width:100%;text-align:center;font-family:var(--f-num);font-weight:800;font-size:22px;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:6px 0}
+textarea.inp{min-height:120px;resize:vertical;line-height:1.5;font-size:15px}
+.qrbox{align-self:center;background:#fff;border-radius:16px;padding:12px;line-height:0}
+.qrbox canvas{width:min(62vw,260px);height:auto;image-rendering:pixelated}
+.calviz{position:relative;height:150px;border-radius:16px;background:var(--raise);overflow:hidden}
+.calviz canvas{position:absolute;inset:0;width:100%;height:100%}
+.caltap{height:120px;border-radius:18px;border:1.5px dashed var(--line);background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:15px;touch-action:none;-webkit-user-select:none;user-select:none}
+.caltap.hit{border-color:var(--text);background:var(--raise)}
+.calres{font-size:15px;line-height:1.5}
+.calres b{font-family:var(--f-num);font-size:20px}
 .librow{display:flex;align-items:center;gap:10px;background:var(--raise);border-radius:12px;padding:10px 12px}
 .librow .nm{flex:1;min-width:0}
 .librow .nm b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -352,9 +369,10 @@ input[type=range]{width:100%;accent-color:var(--beat)}
     </div>
   </header>
   <ul id="songList" class="sl"></ul>
-  <div id="emptyList" class="empty" hidden><b>아직 곡이 없어요</b><span>아래 ＋ 버튼으로 첫 곡을 추가하세요.</span></div>
+  <div id="emptyList" class="empty" hidden><b>아직 곡이 없어요</b><span>단톡방 콘티를 그대로 붙여넣거나, ＋로 한 곡씩 넣으세요.</span><button class="pill" id="bPasteEmpty" style="margin-top:8px">콘티 붙여넣기</button></div>
   <footer class="lf">
     <button id="bStart" class="go">▶ 1번부터 시작</button>
+    <button id="bPaste" class="add" aria-label="콘티 붙여넣기" data-icon="paste" style="display:flex;align-items:center;justify-content:center"></button>
     <button id="bAdd" class="add" aria-label="곡 추가">＋</button>
   </footer>
 </section>
@@ -467,6 +485,8 @@ const ICONS = {
   more:`<circle cx="5.5" cy="12" r="1.7" ${F}/><circle cx="12" cy="12" r="1.7" ${F}/><circle cx="18.5" cy="12" r="1.7" ${F}/>`,
   link:`<path d="M10.2 13.8a3.8 3.8 0 0 0 5.4 0l3-3a3.8 3.8 0 0 0-5.4-5.4l-1.4 1.4"/><path d="M13.8 10.2a3.8 3.8 0 0 0-5.4 0l-3 3a3.8 3.8 0 0 0 5.4 5.4l1.4-1.4"/>`,
   back:`<path d="M14.5 5.5L8 12l6.5 6.5"/>`,
+  paste:`<rect x="5.5" y="4.5" width="13" height="16" rx="2"/><path d="M9.5 4.5V3h5v1.5"/><path d="M9 10h6M9 13.5h6M9 17h4"/>`,
+  share:`<path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 12v6.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5V12"/>`,
   chevL:`<path d="M14.5 5.5L8 12l6.5 6.5"/>`,
   chevR:`<path d="M9.5 5.5L16 12l-6.5 6.5"/>`,
 };
@@ -495,7 +515,7 @@ function seed() {
 // 곡(sheet)은 {items:[{key, page}]}로 여러 PDF의 쪽을 순서대로 가리킴 (page 0 = 그 PDF 전체)
 function fix(d) {
   d.settings = Object.assign({...DEF_SET}, d.settings || {});
-  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), pdfs:Array.isArray(x.pdfs) ? x.pdfs.map(String) : [], marks:x.marks && typeof x.marks === 'object' ? x.marks : {}, ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true}, x.ctl || {}), linked:x.linked || null, songs:x.songs.map(s => newSong(s))}));
+  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), pdfs:Array.isArray(x.pdfs) ? x.pdfs.map(String) : [], marks:x.marks && typeof x.marks === 'object' ? x.marks : {}, ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true}, x.ctl || {}), linked:x.linked || null, shareFrom:x.shareFrom || null, songs:x.songs.map(s => newSong(s))}));
   d.setlists.forEach(x => { if (x.name === '예시 셋리스트') x.name = '예시 프로젝트'; });
   if (!d.setlists.some(x => x.id === d.cur)) d.cur = d.setlists.length ? d.setlists[0].id : null;
   d.library = (Array.isArray(d.library) ? d.library : []).filter(x => x && x.key).map(x => ({key:String(x.key), name:String(x.name || '악보'), pages:+x.pages || 0}));
@@ -1373,7 +1393,7 @@ requestAnimationFrame(frame);
 /* ================= 시트 ================= */
 let sheetKind = null, ignorePop = false;
 function openSheet(kind) { sheetKind = kind; $('#shw').hidden = false; history.pushState({s:'sheet'}, ''); }
-function closeSheet(fromPop) { if ($('#shw').hidden) return; $('#shw').hidden = true; sheetKind = null; $('#sheet').innerHTML = ''; if (!fromPop) { ignorePop = true; history.back(); } }
+function closeSheet(fromPop) { if ($('#shw').hidden) return; if (sheetKind === 'calib') stopCal(); $('#shw').hidden = true; sheetKind = null; $('#sheet').innerHTML = ''; if (!fromPop) { ignorePop = true; history.back(); } }
 $('#shw').addEventListener('click', e => { if (e.target.id === 'shw') { if (sheetKind === 'editor' && !edGuard()) return; closeSheet(); } });
 window.addEventListener('popstate', () => {
   if (ignorePop) { ignorePop = false; return; }
@@ -1471,6 +1491,7 @@ function renderEditor() {
 H.seg = b => {
   const k = b.parentElement.dataset.k, v = b.dataset.v;
   if (sheetKind === 'settings') return setSeg(k, v, b);
+  if (sheetKind === 'calib') { CAL.off = +v; CAL.upd(); b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); return; }
   syncDraft();
   if (k === 'sig') {
     if (v === 'custom') draft._custom = true;
@@ -1638,17 +1659,19 @@ function openNewProj() {
   <div class="sh-head"><button class="txtbtn" data-act="close">취소</button><h2>새 프로젝트</h2><button class="txtbtn strong" data-act="mkProj">만들기</button></div>
   <div class="sh-body">
     <label class="fld"><span>프로젝트 이름</span><input id="npName" type="text" placeholder="예: 주일 2부 예배 · 11월 2일" maxlength="40" autocomplete="off"></label>
-    <p class="note">예배·공연·합주처럼 한 번에 쓰는 곡 묶음이에요. 안에서 곡마다 BPM·박자·악보를 저장해요.</p>
+    <label class="fld"><span>콘티 붙여넣기 (선택)</span><textarea id="npConti" class="inp" placeholder="1. 주님의 선하심 (G)&#10;2. 은혜 (A) 72&#10;3. …"></textarea></label>
+    <p class="note">단톡방 콘티를 그대로 붙여넣으면 곡 목록을 만들어 줘요. 예전에 쓴 곡은 BPM·악보를 그대로 가져와요.</p>
   </div>`;
   openSheet('newproj');
   setTimeout(() => { const t = $('#npName'); t && t.focus(); }, 250);
   $('#npName').addEventListener('keydown', e => { if (e.key === 'Enter') H.mkProj(); });
 }
 H.mkProj = () => {
-  const n = ($('#npName').value || '').trim() || '새 프로젝트';
+  const ct = ($('#npConti') && $('#npConti').value || '').trim();
+  const n = ($('#npName').value || '').trim() || (ct && parseConti(ct).header) || '새 프로젝트';
   const x = {id:uid(), name:n, pdfs:[], marks:{}, ctl:{on:true, start:true, song:true, page:true, bpm:true}, songs:[]}; D.setlists.push(x); save();
   closeSheet(); renderHome();
-  setTimeout(() => openProject(x.id), 60);
+  setTimeout(() => { openProject(x.id); if (ct) setTimeout(() => openPaste(ct), 80); }, 60);
 };
 function openProjMenu(id) { pmId = id; pmDelArm = false; pmPdfArm = null; pmImp = false; renderProjMenu(); openSheet('projmenu'); }
 function renderProjMenu() {
@@ -1668,10 +1691,13 @@ function renderProjMenu() {
       ${D.library.some(x => !p.pdfs.includes(x.key)) ? `<button type="button" class="pill" style="flex:0 0 auto" data-act="pmImp" aria-pressed="${pmImp}">다른 프로젝트 악보 가져오기</button>` : ''}
     </div>
     ${pmImp ? `<div class="slrows">${D.library.filter(x => !p.pdfs.includes(x.key)).map(x => `<button type="button" class="slrow" data-act="pmImpOne" data-k="${esc(x.key)}"><span>${esc(x.name)}<small style="display:block;color:var(--mute);font-size:12px">${esc(projsWith(x.key).map(q => q.name).join(', ') || '프로젝트 없음')}</small></span><span>${x.pages ? x.pages + '쪽 · ' : ''}가져오기</span></button>`).join('')}</div>` : ''}
+    <div class="sec-t">이번 주 콘티 보내기</div>
+    <button type="button" class="pill" data-act="pmShare" style="align-self:flex-start;display:inline-flex;align-items:center;gap:6px">${ic('share')}링크·QR로 보내기</button>
+    <p class="note">받은 사람이 링크를 열면 이 곡 목록과 BPM이 그 기기에 저장돼요. 악보 PDF는 들어가지 않아요.</p>
     ${syncSection(p)}
     <button type="button" class="pill" data-act="pmExport" style="align-self:flex-start">악보 PDF로 내보내기 (표기 포함)</button>
     <p class="note">표지(곡 목록·BPM) + 곡 순서대로 고른 쪽을 한 파일로 합쳐요. 곡 첫 쪽엔 제목·BPM 표시가 붙어요.</p>
-    <div class="sh-actions"><button type="button" data-act="pmDup">복제</button><button type="button" class="danger" data-act="pmDel">${pmDelArm ? ([p.songs.length ? `${p.songs.length}곡` : '', p.pdfs.filter(k => projsWith(k).length === 1).length ? `PDF ${p.pdfs.filter(k => projsWith(k).length === 1).length}개` : ''].filter(Boolean).join('·') || '프로젝트') + '도 지워져요 · 삭제' : '삭제'}</button></div>
+    <div class="sh-actions"><button type="button" data-act="pmDup">복사해서 새로 만들기</button><button type="button" class="danger" data-act="pmDel">${pmDelArm ? ([p.songs.length ? `${p.songs.length}곡` : '', p.pdfs.filter(k => projsWith(k).length === 1).length ? `PDF ${p.pdfs.filter(k => projsWith(k).length === 1).length}개` : ''].filter(Boolean).join('·') || '프로젝트') + '도 지워져요 · 삭제' : '삭제'}</button></div>
   </div>`;
 }
 const refreshLists = () => { renderHome(); if (!$('#scrList').hidden) renderList(); };
@@ -1730,8 +1756,8 @@ function renderSettings() {
     <button type="button" class="pill" data-act="preview" style="align-self:flex-start">▶ 들어보기</button>
     <label class="fld"><span>볼륨</span><input id="sVol" type="range" min="0" max="1" step="0.05" value="${S.volume}"></label>
     <label class="fld"><span>쪼개기 볼륨</span><input id="sSub" type="range" min="0" max="1" step="0.05" value="${S.subVol}"></label>
-    <label class="fld"><span>화면 박 타이밍 보정 · <b id="sOffV">${S.visOffset > 0 ? '+' : ''}${S.visOffset}ms</b></span><input id="sOff" type="range" min="-250" max="100" step="5" value="${S.visOffset}"></label>
-    <p class="note">재생하면서 소리와 화면 빛이 같이 맞는지 보세요. 화면이 늦으면 오른쪽(+), 블루투스 이어폰처럼 소리가 늦게 들리면 왼쪽(−)으로. 진동도 같이 맞춰져요.</p>
+    <div class="fld"><span>소리·화면 박 맞추기 · 지금 ${S.visOffset > 0 ? '+' : ''}${S.visOffset}ms</span><button type="button" class="pill" data-act="calOpen" style="align-self:flex-start">블루투스·스피커에 맞추기</button></div>
+    <p class="note">블루투스 스피커·이어폰은 소리가 늦게 나와요. 쓰는 스피커를 연결하고 한 번 맞춰 두세요.</p>
     ${seg('vibrate', '소리 꺼졌을 때 진동', [['off', '끔'], ['down', '첫 박만'], ['all', '매 박']], S.vibrate)}
     ${canVib ? '' : '<p class="note">이 폰(브라우저)은 진동을 지원하지 않아요. 아이폰 웹앱은 진동이 안 돼요.</p>'}
     ${tgl('showBar', '마디 번호 표시', S.showBar, '본박부터 1마디. 반복 구간에서 어긋나면 ±로 맞춰요')}
@@ -1750,11 +1776,11 @@ function renderSettings() {
     <p class="note">불러온 셋리스트는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v2.2 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v2.3 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
-  $('#sOff').oninput = e => { S.visOffset = +e.target.value; $('#sOffV').textContent = (S.visOffset > 0 ? '+' : '') + S.visOffset + 'ms'; save(); };
+
 }
 function setSeg(k, v, b) {
   D.settings[k] = v; save();
@@ -2223,6 +2249,248 @@ H.doJoin = async () => {
   }
 };
 
+/* ================= 콘티 붙여넣기 ================= */
+// "1. 주님의 선하심 (G) 72" 같은 줄 → {제목, 키, BPM}. 번호 붙은 줄이 있으면 그것만 곡, 첫 줄 제목은 프로젝트 이름 후보
+function parseConti(text) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.replace(/​/g, '').trim()).filter(Boolean);
+  const NUM = /^(?:\d{1,2}\s*[.)\]:．、]|[①-⑳]|[-•·*▶►▷○●])\s*/;
+  const numbered = lines.some(l => NUM.test(l));
+  let header = ''; const items = [];
+  lines.forEach((l, i) => {
+    const song = numbered ? NUM.test(l) : !(i === 0 && /콘티|예배|주일|찬양|집회|수련회|\d{1,2}\s*[\/.월]\s*\d{1,2}/.test(l));
+    if (!song) { if (!header) header = l.replace(/[<>\[\]【】]/g, '').trim().slice(0, 40); return; }
+    let t = l.replace(NUM, ''), key = null, bpm = null;
+    const km = t.match(/[(\[（]\s*([A-G](?:[#♯b♭])?m?(?:\s*(?:[-→>~/]|에서)\s*[A-G](?:[#♯b♭])?m?)*)\s*(?:key|키)?\s*[)\]）]/i) || t.match(/(?:^|\s)([A-G](?:[#♯b♭])?m?)\s*(?:key|키)(?=\s|$)/i);
+    if (km) { key = km[1].replace(/\s+/g, ''); t = t.replace(km[0], ' '); }
+    const bm = t.match(/(?:bpm|♩\s*=?|템포)\s*:?\s*(\d{2,3})/i) || t.match(/(\d{2,3})\s*bpm/i) || t.match(/(?:^|\s|[-/·|])(\d{2,3})\s*$/);
+    if (bm && +bm[1] >= 30 && +bm[1] <= 260) { bpm = +bm[1]; t = t.replace(bm[0], ' '); }
+    t = t.replace(/\s*[-–—|·/]+\s*$/, '').replace(/\s{2,}/g, ' ').trim();
+    if (t) items.push({title:t, key, bpm});
+  });
+  return {header, items};
+}
+const normT = t => String(t || '').replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase();
+// 예전에 쓴 같은 곡 (제목 기준, 위쪽 프로젝트 우선)
+function findPast(title) {
+  const n = normT(title); if (!n) return null;
+  for (const p of D.setlists) { const s = p.songs.find(x => normT(x.title) === n); if (s) return s; }
+  return null;
+}
+let PS = null;
+function openPaste(text = '') { PS = {text, edits:{}}; renderPaste(); openSheet('paste'); setTimeout(() => { const t = $('#pasteIn'); if (t && !text) t.focus(); }, 250); }
+function pasteRows() {
+  return parseConti(PS.text).items.map(it => {
+    const k = normT(it.title), past = findPast(it.title), e = PS.edits[k] || {};
+    return {...it, k, past, on:e.on !== false, bpm:e.bpm || it.bpm || (past && past.bpm) || null};
+  });
+}
+function renderPaste() {
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><button class="txtbtn" data-act="close">취소</button><h2>콘티 붙여넣기</h2><button class="txtbtn strong" data-act="pasteAdd" id="pasteGo">넣기</button></div>
+  <div class="sh-body">
+    <textarea id="pasteIn" class="inp" placeholder="단톡방 콘티를 그대로 붙여넣으세요&#10;&#10;11/2 주일 2부&#10;1. 주님의 선하심 (G)&#10;2. 은혜 (A) 72">${esc(PS.text)}</textarea>
+    <div class="slrows" id="pasteList"></div>
+  </div>`;
+  $('#pasteIn').addEventListener('input', e => { PS.text = e.target.value; renderPasteList(); });
+  renderPasteList();
+}
+function renderPasteList() {
+  const rows = pasteRows(), on = rows.filter(r => r.on).length;
+  $('#pasteGo').textContent = on ? `${on}곡 넣기` : '넣기';
+  $('#pasteList').innerHTML = rows.length ? rows.map((r, i) => `<div class="prow${r.on ? '' : ' off'}">
+      <button type="button" class="pchk" data-act="pasteTog" data-k="${esc(r.k)}" aria-pressed="${r.on}" aria-label="${esc(r.title)} 넣기">${r.on ? '✓' : ''}</button>
+      <div style="min-width:0"><b>${i + 1}. ${esc(r.title)}</b><small class="${r.past ? 'past' : ''}">${[r.key ? r.key + '키' : '', r.past ? `지난번 ${r.past.bpm} BPM${r.past.sheet ? ' · 악보' : ''}` : '새 곡'].filter(Boolean).join(' · ')}</small></div>
+      <input type="number" inputmode="numeric" min="30" max="260" placeholder="BPM" value="${r.bpm || ''}" data-k="${esc(r.k)}" aria-label="${esc(r.title)} BPM">
+    </div>`).join('') : '<p class="note">번호(1. 2. …)가 붙은 줄을 곡으로 읽어요. 괄호 안 키(G)와 줄 끝 숫자(BPM)도 알아서 골라내요.</p>';
+  $('#pasteList').querySelectorAll('input').forEach(inp => inp.addEventListener('change', e => { const k = e.target.dataset.k; PS.edits[k] = {...(PS.edits[k] || {}), bpm:clamp(+e.target.value || 0, 0, 260) || null}; }));
+}
+H.pasteTog = b => { const k = b.dataset.k, cur = PS.edits[k] || {}; PS.edits[k] = {...cur, on:cur.on === false}; renderPasteList(); };
+H.pasteAdd = () => {
+  const p = curSL(), rows = pasteRows().filter(r => r.on);
+  if (!rows.length) { toast('넣을 곡이 없어요'); return; }
+  const noBpm = rows.filter(r => !r.bpm).length;
+  for (const r of rows) {
+    const keyMemo = r.key ? r.key + '키' : '';
+    let s;
+    if (r.past) {
+      const pm = (r.past.memo || '').replace(/^[A-G][#♯b♭]?m?키(\s*·\s*)?/, '');
+      s = newSong({...JSON.parse(JSON.stringify(r.past)), id:uid(), title:r.title, bpm:r.bpm || r.past.bpm, memo:[keyMemo, pm].filter(Boolean).join(' · ')});
+      if (s.sheet) s.sheet.items.forEach(it => { if (!p.pdfs.includes(it.key) && libOf(it.key)) p.pdfs.push(it.key); });
+    } else s = newSong({title:r.title, bpm:r.bpm || 100, memo:keyMemo});
+    p.songs.push(s);
+  }
+  save(); closeSheet(); renderList();
+  if (noBpm) toast(`새 곡 ${noBpm}개는 100 BPM으로 넣었어요 · 곡을 눌러 고쳐 주세요`);
+};
+$('#bPaste').onclick = () => openPaste('');
+$('#bPasteEmpty').onclick = () => openPaste('');
+
+/* ================= 이번 주 콘티 링크 ================= */
+const SHARE_BASE = 'https://chocotea101.github.io/count-in/';
+const shareBase = () => /^(chocotea101\.github\.io|localhost|127\.0\.0\.1)$/.test(location.hostname) ? location.origin + location.pathname : SHARE_BASE;
+const b64u = bytes => { let s = ''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64u = str => { const s = atob(str.replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)); };
+// 링크 안에 곡 정보를 압축해서 담음 (서버 없음). 앞 글자 1 = deflate, 0 = 압축 안 함
+async function packConti(obj) {
+  let bytes = new TextEncoder().encode(JSON.stringify(obj)), z = '0';
+  if (window.CompressionStream) { try { bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer()); z = '1'; } catch (e) {} }
+  return z + b64u(bytes);
+}
+async function unpackConti(str) {
+  let bytes = unb64u(str.slice(1));
+  if (str[0] === '1') bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+async function contiLink(p) {
+  const payload = {v:1, id:p.shareFrom || p.id, n:p.name, s:p.songs.map(s => [s.id, s.title, s.bpm, s.num, s.den, s.pulse === 'dotted' ? 1 : 0, s.sub, s.countIn, s.memo || ''])};
+  return shareBase() + '#c=' + await packConti(payload);
+}
+const sigShort = s => s.num === 4 && s.den === 4 ? '' : ` · ${s.num}/${s.den}`;
+const contiText = (p, url) => `[카운트인] ${p.name} · ${p.songs.length}곡\n` + p.songs.map((s, i) => `${i + 1}. ${s.title || '제목 없음'} — ${s.bpm} BPM${sigShort(s)}`).join('\n') + `\n\n열기: ${url}`;
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (x) {} ta.remove(); return ok; }
+}
+let SH = null;
+H.pmShare = async () => {
+  const p = pmProj(); if (!p) return;
+  if (!p.songs.length) { toast('보낼 곡이 없어요'); return; }
+  const url = await contiLink(p);
+  SH = {p, url, text:contiText(p, url)};
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><span></span><h2>콘티 보내기</h2><button class="txtbtn" data-act="close">닫기</button></div>
+  <div class="sh-body">
+    <div class="qrbox"><canvas id="qrCv"></canvas></div>
+    <p class="note" style="text-align:center">리허설 때 이 QR을 보여 주거나, 아래 버튼으로 단톡방에 보내세요.</p>
+    <div class="sh-actions" style="padding-top:0"><button type="button" data-act="shShare">공유하기</button><button type="button" data-act="shCopyMsg">메시지 복사</button><button type="button" data-act="shCopyUrl">링크 복사</button></div>
+    <div class="librow" style="align-items:flex-start"><span class="nm"><b>${esc(p.name)}</b><small style="white-space:pre-line">${esc(p.songs.map((s, i) => `${i + 1}. ${s.title || '제목 없음'} — ${s.bpm} BPM${sigShort(s)}`).join('\n'))}</small></span></div>
+    <p class="note">받은 기기에 같은 콘티가 있으면 새로 만들지 않고 업데이트돼요(그 사람의 메모·악보는 그대로). 악보 PDF는 들어가지 않아요.</p>
+  </div>`;
+  sheetKind = 'share';
+  try {
+    const qrcode = await loadScript('vendor/qrcode.js', 'qrcode');
+    const qr = qrcode(0, 'L'); qr.addData(url); qr.make();
+    const n = qr.getModuleCount(), q = 4, cell = Math.max(3, Math.floor(600 / (n + q * 2))), c = $('#qrCv');
+    if (!c) return;
+    c.width = c.height = (n + q * 2) * cell; const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#0F1217';
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (qr.isDark(y, x)) g.fillRect((x + q) * cell, (y + q) * cell, cell, cell);
+  } catch (e) { const b = $('.qrbox'); if (b) b.hidden = true; }
+};
+H.shShare = async () => {
+  const C = window.Capacitor && window.Capacitor.Plugins;
+  try {
+    if (C && C.Share) { await C.Share.share({title:SH.p.name, text:SH.text}); return; }
+    if (navigator.share) { await navigator.share({title:SH.p.name, text:SH.text}); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  if (await copyText(SH.text)) toast('공유를 열 수 없어서 메시지를 복사했어요');
+};
+H.shCopyMsg = async () => { toast(await copyText(SH.text) ? '메시지를 복사했어요 · 단톡방에 붙여넣으세요' : '복사하지 못했어요'); };
+H.shCopyUrl = async () => { toast(await copyText(SH.url) ? '링크를 복사했어요' : '복사하지 못했어요'); };
+
+/* ---- 링크로 받은 콘티 ---- */
+let RC = null;
+async function handleConti(hash) {
+  if (!hash || !hash.startsWith('#c=')) return;
+  history.replaceState(history.state || {s:'home'}, '', location.pathname + location.search);
+  let d;
+  try { d = await unpackConti(hash.slice(3)); if (!d || !Array.isArray(d.s)) throw 0; }
+  catch (e) { toast('콘티 링크를 읽지 못했어요 · 링크가 잘렸는지 확인해 주세요'); return; }
+  RC = d;
+  const mine = D.setlists.find(x => x.id === d.id), same = D.setlists.find(x => x.shareFrom === d.id);
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><button class="txtbtn" data-act="close">닫기</button><h2>콘티를 받았어요</h2><button class="txtbtn strong" data-act="rcvSave">${mine ? '열기' : same ? '업데이트' : '저장'}</button></div>
+  <div class="sh-body">
+    <div class="librow" style="align-items:flex-start"><span class="nm"><b>${esc(d.n)}</b><small style="white-space:pre-line">${esc(d.s.map((a, i) => `${i + 1}. ${a[1] || '제목 없음'} — ${a[2]} BPM${a[3] === 4 && a[4] === 4 ? '' : ` · ${a[3]}/${a[4]}`}`).join('\n'))}</small></span></div>
+    <p class="note">${mine ? '이 기기에서 만든 콘티예요.' : same ? `이미 받은 콘티예요. 업데이트하면 곡 순서·BPM이 바뀌고, 내 메모·악보·표기는 그대로예요.` : '저장하면 이 기기에 프로젝트로 생겨요. 악보 PDF는 들어 있지 않아요.'}</p>
+  </div>`;
+  openSheet('receive');
+}
+H.rcvSave = () => {
+  const d = RC; if (!d) return;
+  const mine = D.setlists.find(x => x.id === d.id);
+  if (mine) { closeSheet(); setTimeout(() => openProject(mine.id), 60); return; }
+  const songs = d.s.map(a => newSong({id:a[0], title:String(a[1] || ''), bpm:clamp(+a[2] || 100, 20, 300), num:+a[3] || 4, den:+a[4] || 4, pulse:a[5] ? 'dotted' : 'eighth', sub:a[6] || 'none', countIn:+a[7] || 0, memo:String(a[8] || '')}));
+  let p = D.setlists.find(x => x.shareFrom === d.id);
+  if (p) { p.name = d.n; p.songs = mergeSongs(p.songs, songs); }
+  else { p = {id:uid(), shareFrom:d.id, name:String(d.n || '받은 콘티'), pdfs:[], marks:{}, ctl:{on:true, start:true, song:true, page:true, bpm:true}, linked:null, songs}; D.setlists.unshift(p); }
+  save(); closeSheet(); renderHome();
+  setTimeout(() => openProject(p.id), 60);
+};
+window.addEventListener('hashchange', () => handleConti(location.hash));
+
+/* ================= 소리·화면 박 맞추기 (블루투스 지연 보정) ================= */
+// 보정 화면이 열려 있는 동안 90 BPM 클릭을 내고, 원이 박마다 번쩍임.
+// 자동: 들리는 소리에 맞춰 8번 두드리면 "소리가 늦게 들리는 만큼"을 재서 보정값으로.
+const CAL = {on:false, start:0, spb:60 / 90, n:0, t:0, raf:0, off:0, errs:[], flashT:0};
+function stopCal() { CAL.on = false; clearInterval(CAL.t); cancelAnimationFrame(CAL.raf); }
+H.calOpen = () => {
+  if (E.playing) stop();
+  ensureCtx();
+  CAL.off = D.settings.visOffset; CAL.errs = [];
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><button class="txtbtn" data-act="calCancel">취소</button><h2>소리·화면 박 맞추기</h2><button class="txtbtn strong" data-act="calSave">저장</button></div>
+  <div class="sh-body">
+    <p class="note">실제로 쓸 스피커·이어폰을 연결하고 시작하세요. 지금 클릭이 계속 나오고 있어요.</p>
+    ${seg('calPreset', '시작점', [['0', '폰 스피커·유선'], ['-180', '블루투스']], CAL.off === -180 ? '-180' : CAL.off === 0 ? '0' : '')}
+    <div class="calviz"><canvas id="calCv"></canvas></div>
+    <div class="sec-t">1. 자동으로 맞추기</div>
+    <div class="caltap" id="calTap"><b style="font-size:17px">소리가 들리는 순간 두드리세요</b><span class="num" id="calCnt" style="color:var(--mute)">0 / 8</span></div>
+    <div class="calres" id="calRes"></div>
+    <div class="sec-t">2. 눈으로 확인</div>
+    <p class="note">원이 번쩍이는 순간과 클릭 소리가 같이 오면 끝. 원이 먼저 번쩍이면 −, 늦으면 +.</p>
+    <div class="bpmedit" style="justify-content:center">
+      <button type="button" class="rbtn" data-act="calStep" data-v="-5">−</button>
+      <div style="text-align:center;min-width:120px"><div class="num" id="calV" style="font-family:var(--f-num);font-weight:800;font-size:34px"></div><small style="color:var(--mute)">ms</small></div>
+      <button type="button" class="rbtn" data-act="calStep" data-v="5">+</button>
+    </div>
+    <input id="calRange" type="range" min="-300" max="150" step="5">
+  </div>`;
+  if ($('#shw').hidden) openSheet('calib'); else sheetKind = 'calib';
+  const upd = () => { $('#calV').textContent = (CAL.off > 0 ? '+' : '') + CAL.off; $('#calRange').value = CAL.off; };
+  CAL.upd = upd; upd();
+  $('#calRange').oninput = e => { CAL.off = +e.target.value; upd(); };
+  $('#calTap').addEventListener('pointerdown', e => { e.preventDefault(); calTap(e.timeStamp || performance.now()); });
+  // 클릭 소리 + 번쩍이는 원
+  CAL.on = true; CAL.start = E.ctx.currentTime + .3; CAL.n = 0;
+  CAL.t = setInterval(() => {
+    if (!CAL.on) return;
+    while (CAL.start + CAL.n * CAL.spb < E.ctx.currentTime + .12) { const t = CAL.start + CAL.n * CAL.spb; if (t >= E.ctx.currentTime - .005) click(t, CAL.n % 4 === 0 ? 2 : 1); CAL.n++; }
+  }, 25);
+  const cv = $('#calCv');
+  const frame = () => {
+    if (!CAL.on || !cv.isConnected) return;
+    const b = (outNow() + FRAME_AHEAD + CAL.off / 1000 - CAL.start) / CAL.spb;
+    draw(cv, 'pulse', b < 0 ? 0 : b, 4, {idle:b < 0, subs:1, loud:true});
+    CAL.raf = requestAnimationFrame(frame);
+  };
+  CAL.raf = requestAnimationFrame(frame);
+};
+function calTap(t) {
+  const a = $('#calTap'); a.classList.add('hit'); clearTimeout(CAL.flashT); CAL.flashT = setTimeout(() => a.classList.remove('hit'), 90);
+  const tapOut = outNow() - (performance.now() - t) / 1000, k = Math.round((tapOut - CAL.start) / CAL.spb);
+  if (k < 1) return;
+  CAL.errs.push(tapOut - (CAL.start + k * CAL.spb));
+  const used = CAL.errs.slice(2);              // 처음 두 번은 손이 맞춰 가는 중이라 뺌
+  $('#calCnt').textContent = `${Math.min(used.length, 8)} / 8`;
+  if (used.length < 8) return;
+  const sorted = [...used].sort((x, y) => x - y), med = sorted[sorted.length >> 1];
+  const spread = sorted[sorted.length - 2] - sorted[1];
+  CAL.errs = [];
+  if (spread > .12) { $('#calRes').innerHTML = '두드림이 고르지 않아요. 소리에 집중해서 다시 8번 두드려 보세요.'; $('#calCnt').textContent = '0 / 8'; return; }
+  const late = Math.round(med * 1000);
+  // 사람은 박보다 살짝 먼저 두드리는 편이라, 조금 이른 건 '맞음'으로 봄. 너무 벗어나면 박을 잘못 짚은 것
+  if (late > 320 || late < -90) { $('#calRes').innerHTML = '박을 잘못 짚은 것 같아요. 클릭 소리 하나하나에 맞춰 다시 8번 두드려 보세요.'; $('#calCnt').textContent = '0 / 8'; return; }
+  CAL.off = late > 15 ? clamp(Math.round(-late / 5) * 5, -300, 150) : 0; CAL.upd();
+  $('#calRes').innerHTML = late > 15 ? `소리가 약 <b>${late}ms</b> 늦게 들려요 → <b>${CAL.off}ms</b>로 맞췄어요. 아래 원과 소리가 같이 오는지 확인해 보세요.`
+    : `소리가 늦지 않아요 (${late}ms). 보정 없이 <b>0ms</b>로 두었어요.`;
+  $('#calCnt').textContent = '다시 하려면 또 두드리세요';
+}
+H.calStep = b => { CAL.off = clamp(CAL.off + +b.dataset.v, -300, 150); CAL.upd(); };
+// 저장·취소하면 설정 화면으로 돌아감 (같은 시트 안에서)
+H.calSave = () => { stopCal(); D.settings.visOffset = CAL.off; save(); sheetKind = 'settings'; renderSettings(); };
+H.calCancel = () => { stopCal(); sheetKind = 'settings'; renderSettings(); };
+
 /* ================= 키보드 ================= */
 // 키보드가 화면을 줄여 주지 않는 환경(아이폰 사파리, 일부 안드로이드 앱)에서 키보드 높이만큼 창을 올림
 (() => {
@@ -2257,6 +2525,7 @@ window.__countin = {beat:() => beatNow(), bpm:() => P.bpm, offset:() => SY.offse
 
 /* ================= 시작 ================= */
 renderHome(); show('home');
+if (location.hash.startsWith('#c=')) setTimeout(() => handleConti(location.hash), 300);
 history.replaceState({s:'home'}, '');
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1') && !window.Capacitor) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
