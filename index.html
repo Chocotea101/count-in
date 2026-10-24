@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0F1217">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="카운트인">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>카운트인</title>
+<style>
+:root{
+  --ink:#0F1217; --panel:#171B22; --raise:#20252F; --line:#2D3340;
+  --text:#ECE7DC; --mute:#959CAA; --dim:#5F6676;
+  --beat:#F2A93B; --down:#FF6A55; --cue:#71C6B9;
+  --f-num:"SF Pro Display","Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",Menlo,"Roboto Mono",monospace;
+  --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px);
+  --sl:env(safe-area-inset-left,0px); --sr:env(safe-area-inset-right,0px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--text);font-family:var(--f-body);font-size:16px;overscroll-behavior:none}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overflow:hidden}
+input,textarea{-webkit-user-select:text;user-select:text;font:inherit;color:inherit}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;touch-action:manipulation}
+button:disabled{opacity:.35;cursor:default}
+button:focus-visible,input:focus-visible{outline:2px solid var(--beat);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+.scr{position:fixed;inset:0;display:flex;flex-direction:column;
+  padding:var(--st) max(0px,var(--sr)) var(--sb) max(0px,var(--sl))}
+
+/* ---------- 목록 ---------- */
+.lh{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px 10px}
+.slpick{display:flex;flex-direction:column;align-items:flex-start;min-width:0;text-align:left}
+.slpick .d{font-family:var(--f-mono);font-size:11px;color:var(--mute);letter-spacing:.06em}
+.slpick .n{font-size:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
+.lh-r{display:flex;gap:8px;align-items:center}
+.pill{border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px}
+.pill[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
+.icbtn{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:18px}
+.sl{list-style:none;margin:0;padding:4px 12px 12px;display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sl li{display:flex;align-items:stretch;background:var(--raise);border-radius:14px;overflow:hidden}
+.sl .row{flex:1;min-width:0;display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:10px;padding:12px 6px 12px 14px;text-align:left}
+.sl .i{font-family:var(--f-mono);font-size:12px;color:var(--dim)}
+.sl .mid{display:flex;flex-direction:column;min-width:0}
+.sl .tt{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sl .mm{font-family:var(--f-mono);font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.sl .b{font-family:var(--f-num);font-weight:800;font-size:32px;line-height:1;text-align:right}
+.sl .b small{display:block;font-family:var(--f-mono);font-weight:400;font-size:9px;color:var(--mute);letter-spacing:.1em}
+.sl .more{width:48px;font-size:22px;color:var(--mute);flex:none}
+.sl .ord{display:flex;flex-direction:column;flex:none;border-left:1px solid var(--line)}
+.sl .ord button{flex:1;width:52px;font-size:16px}
+.sl .ord button+button{border-top:1px solid var(--line)}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--mute);text-align:center;padding:24px}
+.empty b{color:var(--text);font-size:18px}
+.lf{display:flex;gap:10px;padding:10px 12px 14px}
+.go{flex:1;border-radius:16px;background:var(--beat);color:var(--ink);font-weight:700;font-size:17px;padding:16px 0}
+.add{width:58px;border-radius:16px;border:1px solid var(--line);font-size:26px}
+
+/* ---------- 플레이 ---------- */
+.ph{display:flex;align-items:center;gap:10px;padding:10px 12px 4px}
+.back{font-size:15px;color:var(--mute);padding:8px 6px;flex:none}
+.ph-mid{flex:1;min-width:0;text-align:left}
+.ph-mid .t{font-size:18px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-mid .sub{font-family:var(--f-mono);font-size:11px;color:var(--mute)}
+.pbody{flex:1;min-height:0;display:flex;flex-direction:column}
+.vwrap{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 10px}
+.memo{align-self:flex-start;margin:4px 2px 6px;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:3px 9px;color:var(--text);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.viz{position:relative;flex:1;min-height:150px;border-radius:22px;background:var(--raise);overflow:hidden;touch-action:pan-y}
+.viz canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.vizlbl{position:absolute;left:0;right:0;top:12px;text-align:center;font-family:var(--f-mono);font-size:12px;color:var(--mute);letter-spacing:.08em;pointer-events:none}
+.dots{display:flex;justify-content:center;gap:6px;padding:12px 0 2px}
+.dots span{flex:0 1 34px;height:10px;border-radius:5px;background:var(--line)}
+.dots span.on{background:var(--beat)}
+.dots span.on.d{background:var(--down)}
+.dots.cnt span.on{background:var(--cue)}
+.side{display:flex;flex-direction:column}
+.bpmrow{display:flex;align-items:center;justify-content:center;gap:18px;padding:8px 0 0}
+.bpmbox{text-align:center;min-width:3.4ch;position:relative}
+.bpmbox .big{font-family:var(--f-num);font-weight:800;font-size:64px;line-height:1}
+.bpmbox small{display:block;font-family:var(--f-mono);font-size:10px;color:var(--mute);letter-spacing:.14em}
+.savebpm{position:absolute;left:50%;transform:translateX(-50%);bottom:-24px;font-size:11px;color:var(--ink);background:var(--cue);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.rbtn{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:var(--ink);font-size:24px;flex:none}
+.rbtn:active{background:var(--raise)}
+.modes{display:flex;gap:6px;justify-content:center;padding:18px 12px 0;flex-wrap:wrap}
+.modes button{font-size:13px;border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mute)}
+.modes button[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
+.nextup{margin:10px 12px 0;padding:8px 12px;border-radius:12px;background:var(--panel);font-size:13px;color:var(--mute);display:flex;justify-content:space-between;gap:10px}
+.nextup b{color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctrl{display:flex;justify-content:space-around;align-items:center;padding:12px 8px 12px}
+.ctrl > button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--mute);min-width:52px}
+.ctrl .ic{font-size:22px;color:var(--text);line-height:1}
+.ctrl .main{width:76px;height:76px;border-radius:50%;background:var(--beat);color:var(--ink);font-size:28px;justify-content:center}
+.ctrl .snd[aria-pressed="true"] .ic{color:var(--beat)}
+.lockhint{text-align:center;font-size:12px;color:var(--beat);padding-bottom:6px}
+.locked .lockable{opacity:.3;pointer-events:none}
+#bLock[aria-pressed="true"]{border-color:var(--beat);color:var(--beat)}
+
+@media (orientation:landscape) and (max-height:560px){
+  .pbody{flex-direction:row}
+  .vwrap{padding:0 6px 8px 12px}
+  .side{width:320px;flex:none;justify-content:center;overflow-y:auto}
+  .bpmbox .big{font-size:52px}
+  .modes{padding-top:12px}
+  .ctrl .main{width:64px;height:64px}
+}
+
+/* ---------- 시트 ---------- */
+.shw{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.sheet{width:100%;max-width:560px;max-height:calc(100% - var(--st) - 16px);overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border-radius:22px 22px 0 0;
+  padding:8px max(16px,var(--sl)) calc(20px + var(--sb)) max(16px,var(--sr));animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet{animation:none}}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 6px}
+.sh-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0 10px;position:sticky;top:-8px;background:var(--panel);z-index:1}
+.sh-head h2{font-size:17px;margin:0}
+.txtbtn{font-size:16px;color:var(--mute);padding:8px 4px}
+.txtbtn.strong{color:var(--beat);font-weight:700}
+.sh-body{display:flex;flex-direction:column;gap:16px}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld > span{font-family:var(--f-mono);font-size:11px;color:var(--mute);letter-spacing:.06em}
+.fld input[type=text],.fld input:not([type]),.fld select,.inp{background:var(--ink);border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:16px;width:100%}
+.bpmedit{display:flex;align-items:center;gap:8px}
+.bpmedit input{width:96px;text-align:center;font-family:var(--f-num);font-weight:800;font-size:34px;background:var(--ink);border:1px solid var(--line);border-radius:12px;padding:4px 0}
+.bpmedit .rbtn{width:44px;height:44px;font-size:20px}
+.tapbtn{flex:1;min-width:0;border:1.5px dashed var(--beat);color:var(--beat);border-radius:12px;padding:10px 6px;font-size:14px}
+.tapbtn:active{background:rgba(242,169,59,.15)}
+.seg{display:flex;background:var(--ink);border-radius:12px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{flex:1 1 auto;font-size:14px;padding:8px 6px;border-radius:9px;color:var(--mute);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--raise);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+.tg{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:15px;padding:2px 0;text-align:left;width:100%}
+.tg small{display:block;color:var(--mute);font-size:12px}
+.sw{width:46px;height:28px;border-radius:14px;background:var(--line);position:relative;flex:none;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--mute);transition:left .15s}
+.tg[aria-checked="true"] .sw{background:var(--beat)}
+.tg[aria-checked="true"] .sw::after{left:21px;background:var(--ink)}
+.row2{display:flex;gap:8px;align-items:center}
+.row2 > *{flex:1}
+.sh-actions{display:flex;gap:8px;padding-top:6px}
+.sh-actions button{flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 0;font-size:15px}
+.danger{color:var(--down)!important;border-color:rgba(255,106,85,.5)!important}
+.note{font-size:12px;color:var(--mute);line-height:1.5}
+input[type=range]{width:100%;accent-color:var(--beat)}
+.slrows{display:flex;flex-direction:column;gap:6px}
+.slrow{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--raise);border-radius:12px;padding:12px 14px;text-align:left;width:100%}
+.slrow[aria-current="true"]{box-shadow:inset 0 0 0 1.5px var(--beat)}
+.slrow span:last-child{font-family:var(--f-mono);font-size:12px;color:var(--mute);flex:none}
+.sec-t{font-size:13px;font-weight:700;color:var(--mute);margin-top:6px}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + var(--sb));transform:translateX(-50%);background:var(--text);color:var(--ink);padding:10px 18px;border-radius:999px;font-size:14px;z-index:30;pointer-events:none;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<!-- ===== 셋리스트 ===== -->
+<section id="scrList" class="scr">
+  <header class="lh">
+    <button id="slPick" class="slpick" aria-label="셋리스트 바꾸기"><span class="d">셋리스트 ▾</span><span class="n" id="slName"></span></button>
+    <div class="lh-r">
+      <button id="bOrder" class="pill" aria-pressed="false">순서</button>
+      <button id="bSettings" class="icbtn" aria-label="설정">⚙︎</button>
+    </div>
+  </header>
+  <ul id="songList" class="sl"></ul>
+  <div id="emptyList" class="empty" hidden><b>아직 곡이 없어요</b><span>아래 ＋ 버튼으로 첫 곡을 추가하세요.</span></div>
+  <footer class="lf">
+    <button id="bStart" class="go">▶ 1번부터 시작</button>
+    <button id="bAdd" class="add" aria-label="곡 추가">＋</button>
+  </footer>
+</section>
+
+<!-- ===== 플레이 ===== -->
+<section id="scrPlay" class="scr" hidden>
+  <header class="ph">
+    <button id="bBack" class="back lockable">‹ 목록</button>
+    <button class="ph-mid lockable" id="bTitle" aria-label="이 곡 편집"><div class="t" id="pTitle"></div><div class="sub num" id="pSub"></div></button>
+    <button id="bLock" class="icbtn" aria-pressed="false" aria-label="화면 잠금">🔓</button>
+  </header>
+  <div class="pbody">
+    <div class="vwrap">
+      <div class="memo" id="pMemo" hidden></div>
+      <div class="viz" id="viz"><canvas id="cv"></canvas><div class="vizlbl" id="vizLbl"></div></div>
+      <div class="dots" id="dots"></div>
+    </div>
+    <div class="side">
+      <div class="bpmrow">
+        <button class="rbtn lockable" id="bMinus" aria-label="BPM 내리기 (길게: 5씩)">−</button>
+        <div class="bpmbox"><div class="big num" id="pBpm">0</div><small>BPM</small><button id="bSaveBpm" class="savebpm lockable" hidden>이 템포로 저장</button></div>
+        <button class="rbtn lockable" id="bPlus" aria-label="BPM 올리기 (길게: 5씩)">+</button>
+      </div>
+      <div class="modes lockable" id="modes" role="group" aria-label="비주얼 모드"></div>
+      <div class="nextup"><span>다음 곡</span><b id="pNext"></b></div>
+      <div class="ctrl">
+        <button id="bPrev" class="lockable" aria-label="이전 곡"><span class="ic">⏮</span>이전</button>
+        <button id="bTap" class="lockable" aria-label="탭 템포"><span class="ic">✋</span>탭</button>
+        <button class="main" id="bPlay" aria-label="재생">▶</button>
+        <button class="snd lockable" id="bSnd" aria-pressed="true" aria-label="소리"><span class="ic">🔊</span><span id="sndLbl">소리</span></button>
+        <button id="bNext" aria-label="다음 곡"><span class="ic">⏭</span>다음</button>
+      </div>
+      <div class="lockhint" id="lockHint" hidden>잠금 중 · 재생/다음만 동작 · 🔒 길게 눌러 해제</div>
+    </div>
+  </div>
+</section>
+
+<div id="shw" class="shw" hidden><div id="sheet" class="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="toast" class="toast" hidden></div>
+<input type="file" id="fileIn" accept="application/json,.json" hidden>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ================= 데이터 ================= */
+const KEY = 'countin.v1';
+const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false};
+const VIS = [['pulse','원'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자']];
+const SOUNDS = [['wood','우드블록'],['beep','비프'],['cow','카우벨'],['stick','사이드스틱']];
+function newSong(o = {}) {
+  return Object.assign({id:uid(), title:'', bpm:100, num:4, den:4, pulse:'eighth', sub:'none', countIn:2, muteAfter:false, accent:true, visual:null, memo:''}, o);
+}
+function seed() {
+  const s = {id:uid(), name:'예시 셋리스트', songs:[
+    newSong({title:'여는 곡 (예시)', bpm:72, memo:'인트로 드럼만 4마디'}),
+    newSong({title:'빠른 곡 (예시)', bpm:128, sub:'8', memo:'브릿지 하프타임'}),
+    newSong({title:'셔플 곡 (예시)', bpm:64, num:6, den:8, pulse:'dotted', sub:'3'}),
+    newSong({title:'왈츠 곡 (예시)', bpm:84, num:3, den:4, countIn:1}),
+  ]};
+  return {v:1, setlists:[s], cur:s.id, settings:{...DEF_SET}};
+}
+function fix(d) {
+  d.settings = Object.assign({...DEF_SET}, d.settings || {});
+  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), songs:x.songs.map(s => newSong(s))}));
+  if (!d.setlists.length) d.setlists.push({id:uid(), name:'내 셋리스트', songs:[]});
+  if (!d.setlists.some(x => x.id === d.cur)) d.cur = d.setlists[0].id;
+  return d;
+}
+function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.setlists) return fix(d); } catch (e) {} return seed(); }
+let D = load();
+function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { toast('저장 공간이 부족해서 저장하지 못했어요'); } }
+save();
+const curSL = () => D.setlists.find(x => x.id === D.cur) || D.setlists[0];
+
+const isDotted = s => s.den === 8 && s.pulse === 'dotted' && s.num % 3 === 0;
+const bpb = s => isDotted(s) ? s.num / 3 : s.num;
+const subsOf = s => ({none:1, '8':2, '3':3, '16':4})[s.sub] || 1;
+const SUBL = {none:'', '8':'8분', '3':'3연음', '16':'16분'};
+const sigL = s => `${s.num}/${s.den}` + (isDotted(s) ? ' (점4분)' : '');
+const meta = s => [sigL(s), SUBL[s.sub], s.countIn ? `카운트 ${s.countIn}마디` : '', s.memo].filter(Boolean).join(' · ');
+
+/* ================= 공통 UI ================= */
+let toastT;
+function toast(m) { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 1900); }
+
+function makeTapper(cb) {
+  let ts = [];
+  return () => {
+    const now = performance.now();
+    if (ts.length && now - ts[ts.length - 1] > 2000) ts = [];
+    ts.push(now); if (ts.length > 8) ts.shift();
+    if (ts.length >= 3) cb(Math.round(60000 / ((ts[ts.length - 1] - ts[0]) / (ts.length - 1))), ts.length);
+    else cb(null, ts.length);
+  };
+}
+
+/* ================= 오디오 / 박 엔진 ================= */
+const E = {ctx:null, master:null, noise:null, playing:false, start:0, spb:.5, n:0, sub:0};
+function ensureCtx() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+  if (!E.ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    E.ctx = new AC({latencyHint:'interactive'});
+    E.master = E.ctx.createGain(); E.master.gain.value = D.settings.volume; E.master.connect(E.ctx.destination);
+    const len = E.ctx.sampleRate * .1, buf = E.ctx.createBuffer(1, len, E.ctx.sampleRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+    E.noise = buf;
+    const s = E.ctx.createBufferSource(); s.buffer = E.ctx.createBuffer(1, 1, 22050); s.connect(E.ctx.destination); s.start(0);
+  }
+  if (E.ctx.state !== 'running') E.ctx.resume();
+  return E.ctx;
+}
+function env(g, t, peak, dec) {
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(peak, .0002), t + .002);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dec);
+}
+// lvl: 2 = 첫 박, 1 = 박, 0 = 쪼개기
+function click(t, lvl, kind = D.settings.sound) {
+  const c = E.ctx, v = lvl === 0 ? D.settings.subVol : 1, g = c.createGain();
+  g.connect(E.master);
+  const tone = (type, f, peak, dec) => { const o = c.createOscillator(), og = c.createGain(); o.type = type; o.frequency.value = f; env(og, t, peak, dec); o.connect(og).connect(g); o.start(t); o.stop(t + dec + .02); };
+  const noise = (f, q, peak, dec) => { const s = c.createBufferSource(), bp = c.createBiquadFilter(), ng = c.createGain(); s.buffer = E.noise; bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; env(ng, t, peak, dec); s.connect(bp).connect(ng).connect(g); s.start(t); s.stop(t + dec + .02); };
+  const hi = lvl === 2, lo = lvl === 0;
+  if (kind === 'wood') { tone('sine', hi ? 1750 : lo ? 1000 : 1250, .9 * v, .05); noise(hi ? 2600 : 2000, 4, .25 * v, .02); }
+  else if (kind === 'beep') tone('square', hi ? 2000 : lo ? 1200 : 1500, .22 * v, .035);
+  else if (kind === 'cow') { const m = hi ? 1.25 : lo ? .85 : 1; tone('square', 800 * m, .22 * v, .18); tone('square', 540 * m, .22 * v, .18); }
+  else { noise(hi ? 3400 : lo ? 2000 : 2600, 1.5, 1.1 * v, .045); tone('sine', hi ? 520 : 440, .3 * v, .03); }
+}
+function vib(t, accent) {
+  if (!navigator.vibrate) return;
+  const ms = Math.max(0, (t - E.ctx.currentTime) * 1000);
+  setTimeout(() => { try { navigator.vibrate(accent ? 70 : 35); } catch (e) {} }, ms);
+}
+function schedule() {
+  if (!E.playing || !E.ctx) return;
+  const s = song(); if (!s) return;
+  const B = bpb(s), subs = subsOf(s), cin = s.countIn * B, ahead = E.ctx.currentTime + .12;
+  for (let guard = 0; guard < 64; guard++) {
+    const counting = E.n < cin;
+    const t = E.start + (E.n + (counting ? 0 : E.sub / subs)) * E.spb;
+    if (t > ahead) break;
+    const audible = D.settings.soundOn && (counting || !s.muteAfter);
+    const late = t < E.ctx.currentTime - .005;
+    if (E.sub === 0) {
+      const first = E.n % B === 0, accent = first && (s.accent || counting);
+      if (audible && !late) click(t, accent ? 2 : 1);
+      if (!audible && !late && D.settings.vibrate !== 'off' && (D.settings.vibrate === 'all' || first)) vib(t, first);
+    } else if (audible && !late) click(t, 0);
+    if (counting) { E.n++; E.sub = 0; }
+    else if (++E.sub >= subs) { E.sub = 0; E.n++; }
+  }
+}
+let worker = null;
+try { worker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),25)'], {type:'text/javascript'}))); worker.onmessage = schedule; }
+catch (e) { setInterval(schedule, 25); }
+
+function start() {
+  if (!song()) return;
+  ensureCtx();
+  E.spb = 60 / P.bpm; E.start = E.ctx.currentTime + .15; E.n = 0; E.sub = 0; E.playing = true;
+  updPlayBtn();
+}
+function stop() { E.playing = false; updPlayBtn(); }
+function beatNow() {
+  if (!E.playing || !E.ctx) return null;
+  const lat = D.settings.soundOn ? (E.ctx.outputLatency || 0) + (E.ctx.baseLatency || 0) : 0;
+  return (E.ctx.currentTime - lat - E.start) / E.spb;
+}
+
+/* ================= 그리기 ================= */
+const COL = (() => { const cs = getComputedStyle(document.documentElement), g = k => cs.getPropertyValue(k).trim(); return {raise:g('--raise'), line:g('--line'), text:g('--text'), mute:g('--mute'), dim:g('--dim'), beat:g('--beat'), down:g('--down'), cue:g('--cue'), ink:g('--ink')}; })();
+const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
+const NUMF = getComputedStyle(document.documentElement).getPropertyValue('--f-num');
+function fit(cv) {
+  const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2.5);
+  const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  return cv.getContext('2d');
+}
+// o: {loud, subs, counting, idle}
+function draw(cv, mode, b, beats, o) {
+  const g = fit(cv), W = cv.width, H = cv.height, m = Math.min(W, H);
+  g.clearRect(0, 0, W, H);
+  const idx = Math.floor(b), ph = b - idx, k = ((idx % beats) + beats) % beats;
+  const col = o.counting ? COL.cue : k === 0 ? COL.down : COL.beat;
+  const hit = o.idle ? 0 : Math.pow(1 - ph, 3);
+  g.globalAlpha = o.idle ? .35 : 1;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (o.counting) mode = 'count';
+
+  if (mode === 'pulse') {
+    const base = m * (o.loud ? .2 : .16), R = Math.min(base * 1.9, m * .46);
+    g.beginPath(); g.arc(W / 2, H / 2, base + m * .22 * hit, 0, 7); g.fillStyle = rgba(col, .2 * hit); g.fill();
+    g.beginPath(); g.arc(W / 2, H / 2, base * (1 + .25 * hit), 0, 7); g.fillStyle = col; g.globalAlpha = (o.idle ? .35 : 1) * (.35 + .65 * hit); g.fill(); g.globalAlpha = o.idle ? .35 : 1;
+    g.lineWidth = m * .014;
+    g.beginPath(); g.arc(W / 2, H / 2, R, 0, 7); g.strokeStyle = COL.line; g.stroke();
+    if (!o.idle) { g.beginPath(); g.arc(W / 2, H / 2, R, -Math.PI / 2, -Math.PI / 2 + ph * Math.PI * 2); g.strokeStyle = COL.mute; g.stroke(); }
+    for (let j = 1; j < o.subs; j++) { const a = -Math.PI / 2 + j / o.subs * Math.PI * 2; g.beginPath(); g.arc(W / 2 + R * Math.cos(a), H / 2 + R * Math.sin(a), m * .018, 0, 7); g.fillStyle = ph >= j / o.subs ? COL.text : COL.dim; g.fill(); }
+  } else if (mode === 'flash') {
+    g.fillStyle = rgba(col, (o.loud ? .95 : .8) * Math.pow(1 - ph, 2) * (o.idle ? 0 : 1)); g.fillRect(0, 0, W, H);
+    g.fillStyle = ph < .25 && !o.idle ? COL.ink : COL.text; g.font = `800 ${m * .5}px ${NUMF}`;
+    g.fillText(String(k + 1), W / 2, H / 2);
+  } else if (mode === 'pend') {
+    const px = W / 2, py = H * .1, L = H * .74, A = Math.min(.6, Math.asin(Math.min(1, W * .42 / L)));
+    const ang = o.idle ? 0 : A * Math.cos(Math.PI * b);
+    g.beginPath(); g.arc(px, py, L, Math.PI / 2 - A, Math.PI / 2 + A); g.strokeStyle = COL.line; g.lineWidth = m * .012; g.stroke();
+    [-1, 1].forEach(s => { const x = px + L * Math.sin(s * A), y = py + L * Math.cos(A); g.beginPath(); g.arc(x, y, m * .04, 0, 7); g.fillStyle = !o.idle && Math.abs(ang - s * A) < .1 ? col : COL.line; g.fill(); });
+    const x = px + L * Math.sin(ang), y = py + L * Math.cos(ang);
+    g.beginPath(); g.moveTo(px, py); g.lineTo(x, y); g.strokeStyle = COL.text; g.lineWidth = m * .02; g.stroke();
+    g.beginPath(); g.arc(x, y, m * .075 * (1 + .3 * hit), 0, 7); g.fillStyle = col; g.fill();
+  } else if (mode === 'bounce') {
+    const floor = H * .8, pad = W * .12, step = beats > 1 ? (W - pad * 2) / (beats - 1) : 0, sx = j => beats > 1 ? pad + step * j : W / 2;
+    for (let j = 0; j < beats; j++) { g.beginPath(); g.ellipse(sx(j), floor + m * .05, Math.min(m * .07, step * .4 || m * .07), m * .022, 0, 0, 7); g.fillStyle = j === k && !o.idle ? rgba(j === 0 ? COL.down : COL.beat, .3 + .7 * hit) : COL.line; g.fill(); }
+    const to = (k + 1) % beats, x = sx(k) + (sx(to) - sx(k)) * (o.idle ? 0 : ph), y = floor - Math.sin(Math.PI * (o.idle ? 0 : ph)) * H * .55;
+    g.beginPath(); g.arc(x, y, m * .065, 0, 7); g.fillStyle = to === 0 && ph > .5 ? COL.down : COL.text; g.fill();
+  } else {
+    g.fillStyle = col; g.font = `800 ${m * .58 * (1 + .16 * hit)}px ${NUMF}`;
+    g.fillText(String(k + 1), W / 2, H * .45);
+    const bw = (W * .84) / beats, y = H * .84;
+    for (let j = 0; j < beats; j++) { g.fillStyle = o.idle ? COL.line : j < k ? COL.mute : j === k ? col : COL.line; g.fillRect(W * .08 + j * bw + bw * .1, y, bw * .8, m * .04); }
+  }
+  g.globalAlpha = 1;
+}
+
+/* ================= 셋리스트 화면 ================= */
+let orderMode = false;
+function renderList() {
+  const sl = curSL();
+  $('#slName').textContent = sl.name;
+  const ul = $('#songList');
+  ul.innerHTML = sl.songs.map((s, i) => `<li data-i="${i}">
+    <button class="row" data-act="play"><span class="i">${i + 1}</span><span class="mid"><span class="tt">${esc(s.title) || '제목 없음'}</span><span class="mm">${esc(meta(s))}</span></span><span class="b num">${s.bpm}<small>BPM</small></span></button>
+    ${orderMode ? `<span class="ord"><button data-act="up" aria-label="위로" ${i === 0 ? 'disabled' : ''}>↑</button><button data-act="down" aria-label="아래로" ${i === sl.songs.length - 1 ? 'disabled' : ''}>↓</button></span>`
+                : `<button class="more" data-act="edit" aria-label="편집">⋯</button>`}</li>`).join('');
+  const empty = !sl.songs.length;
+  $('#emptyList').hidden = !empty; ul.hidden = empty;
+  $('#bStart').disabled = empty;
+  $('#bOrder').setAttribute('aria-pressed', orderMode);
+}
+$('#songList').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const i = +b.closest('li').dataset.i, songs = curSL().songs;
+  if (b.dataset.act === 'play') { if (!orderMode) openPlay(i, false); }
+  else if (b.dataset.act === 'edit') openEditor(i);
+  else { const j = b.dataset.act === 'up' ? i - 1 : i + 1; [songs[i], songs[j]] = [songs[j], songs[i]]; save(); renderList(); }
+});
+$('#bOrder').onclick = () => { orderMode = !orderMode; renderList(); };
+$('#bAdd').onclick = () => openEditor(-1);
+$('#bStart').onclick = () => openPlay(0, true);
+$('#bSettings').onclick = openSettings;
+$('#slPick').onclick = openSetlists;
+
+/* ================= 플레이 화면 ================= */
+const P = {i:0, bpm:100, locked:false};
+const song = () => curSL().songs[P.i];
+const effMode = s => s.visual || D.settings.visual;
+function show(name) { $('#scrList').hidden = name !== 'list'; $('#scrPlay').hidden = name !== 'play'; }
+function openPlay(i, autoplay) {
+  P.i = i; loadSong(); show('play');
+  history.pushState({s:'play'}, '');
+  requestWake();
+  if (autoplay) start();
+}
+function closePlay() { stop(); setLock(false); show('list'); renderList(); releaseWake(); }
+function loadSong() { stop(); const s = song(); if (!s) return; P.bpm = s.bpm; renderPlay(); }
+function renderPlay() {
+  const s = song(), list = curSL().songs; if (!s) return;
+  $('#pTitle').textContent = s.title || '제목 없음';
+  $('#pSub').textContent = `${P.i + 1} / ${list.length} · ${sigL(s)}${SUBL[s.sub] ? ' · ' + SUBL[s.sub] : ''}${s.countIn ? ' · 카운트 ' + s.countIn : ''}${s.muteAfter ? ' · 이후 무음' : ''}`;
+  $('#pMemo').hidden = !s.memo; $('#pMemo').textContent = s.memo;
+  const nx = list[P.i + 1];
+  $('#pNext').textContent = nx ? `${nx.title || '제목 없음'} · ${nx.bpm}` : '마지막 곡이에요';
+  $('#bNext').disabled = !nx; $('#bPrev').disabled = P.i === 0;
+  const dots = $('#dots'), B = bpb(s);
+  dots.innerHTML = Array.from({length:B}, (_, j) => `<span${j === 0 ? ' class="d"' : ''}></span>`).join('');
+  $('#modes').innerHTML = VIS.map(([v, l]) => `<button data-m="${v}" aria-pressed="${effMode(s) === v}">${l}</button>`).join('');
+  updBpm(); updSnd(); updPlayBtn(); lastK = -2;
+}
+function updBpm() { $('#pBpm').textContent = P.bpm; const s = song(); $('#bSaveBpm').hidden = !s || s.bpm === P.bpm; }
+function updSnd() { const on = D.settings.soundOn; $('#bSnd').setAttribute('aria-pressed', on); $('#bSnd .ic').textContent = on ? '🔊' : '🔇'; $('#sndLbl').textContent = on ? '소리' : '무음'; }
+function updPlayBtn() { const b = $('#bPlay'); b.textContent = E.playing ? '❚❚' : '▶'; b.setAttribute('aria-label', E.playing ? '정지' : '재생'); }
+function setBpm(v) {
+  v = clamp(Math.round(v), 20, 300);
+  if (E.playing && E.ctx) { const now = E.ctx.currentTime, b = (now - E.start) / E.spb; E.spb = 60 / v; E.start = now - b * E.spb; }
+  P.bpm = v; updBpm();
+}
+function go(i) {
+  const list = curSL().songs; if (i < 0 || i >= list.length) return;
+  const was = E.playing; P.i = i; loadSong();
+  if (was && D.settings.nextAuto) start();
+}
+$('#bPlay').onclick = () => E.playing ? stop() : start();
+$('#bNext').onclick = () => go(P.i + 1);
+$('#bPrev').onclick = () => go(P.i - 1);
+$('#bBack').onclick = () => history.back();
+$('#bTitle').onclick = () => openEditor(P.i);
+$('#bSnd').onclick = () => { D.settings.soundOn = !D.settings.soundOn; save(); updSnd(); if (D.settings.soundOn) ensureCtx(); };
+$('#bSaveBpm').onclick = () => { song().bpm = P.bpm; save(); updBpm(); toast(`${P.bpm} BPM으로 저장했어요`); };
+$('#modes').addEventListener('click', e => {
+  const b = e.target.closest('button[data-m]'); if (!b) return;
+  const s = song(); if (s.visual) s.visual = b.dataset.m; else D.settings.visual = b.dataset.m;
+  save(); $('#modes').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+const playTap = makeTapper(v => { if (v) setBpm(v); });
+$('#bTap').onclick = playTap;
+function holdBtn(el, step) {
+  let t1, t2, fired = false;
+  const end = () => { clearTimeout(t1); clearInterval(t2); };
+  el.addEventListener('pointerdown', () => { fired = false; t1 = setTimeout(() => { fired = true; setBpm(P.bpm + step * 5); t2 = setInterval(() => setBpm(P.bpm + step * 5), 320); }, 450); });
+  el.addEventListener('pointerup', () => { end(); if (!fired) setBpm(P.bpm + step); });
+  el.addEventListener('pointerleave', end); el.addEventListener('pointercancel', end);
+  el.addEventListener('click', e => { if (e.detail === 0) setBpm(P.bpm + step); });
+  el.addEventListener('contextmenu', e => e.preventDefault());
+}
+holdBtn($('#bMinus'), -1); holdBtn($('#bPlus'), 1);
+
+// 스와이프로 곡 이동
+(() => {
+  let x0 = null, y0 = 0;
+  const v = $('#viz');
+  v.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; });
+  v.addEventListener('pointerup', e => {
+    if (x0 === null) return; const dx = e.clientX - x0, dy = e.clientY - y0; x0 = null;
+    if (Math.abs(dx) < 70 || Math.abs(dy) > 60) return;
+    if (dx < 0) go(P.i + 1); else if (!P.locked) go(P.i - 1);
+  });
+})();
+
+// 잠금: 누르면 잠기고, 길게 눌러야 풀림
+function setLock(on) {
+  P.locked = on; $('#scrPlay').classList.toggle('locked', on);
+  $('#bLock').setAttribute('aria-pressed', on); $('#bLock').textContent = on ? '🔒' : '🔓'; $('#lockHint').hidden = !on;
+}
+(() => {
+  const b = $('#bLock'); let t = null, justUnlocked = false;
+  b.addEventListener('pointerdown', () => { if (P.locked) t = setTimeout(() => { setLock(false); justUnlocked = true; toast('잠금을 풀었어요'); }, 700); });
+  const end = () => clearTimeout(t);
+  b.addEventListener('pointerup', end); b.addEventListener('pointerleave', end); b.addEventListener('pointercancel', end);
+  b.addEventListener('click', () => { if (justUnlocked) { justUnlocked = false; return; } if (!P.locked) { setLock(true); toast('잠갔어요 · 재생과 다음만 눌려요'); } else toast('🔒을 길게 누르면 풀려요'); });
+  b.addEventListener('contextmenu', e => e.preventDefault());
+})();
+
+// 키보드 · 블루투스 페달 (키보드로 인식되는 페달)
+document.addEventListener('keydown', e => {
+  if ($('#scrPlay').hidden || !$('#shw').hidden) return;
+  if (e.target.closest && e.target.closest('input,textarea')) return;
+  const onBtn = e.target.tagName === 'BUTTON';
+  if ((e.key === ' ' || e.key === 'Enter') && !onBtn) { e.preventDefault(); E.playing ? stop() : start(); }
+  else if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); go(P.i + 1); }
+  else if ((e.key === 'ArrowLeft' || e.key === 'PageUp') && !P.locked) { e.preventDefault(); go(P.i - 1); }
+  else if (e.key === 'ArrowUp' && !P.locked) { e.preventDefault(); setBpm(P.bpm + 1); }
+  else if (e.key === 'ArrowDown' && !P.locked) { e.preventDefault(); setBpm(P.bpm - 1); }
+});
+
+// 화면 꺼짐 방지
+let wl = null;
+const nativeAwake = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.KeepAwake;
+async function requestWake() {
+  if (!D.settings.wake || document.visibilityState !== 'visible') return;
+  if (nativeAwake()) { try { await nativeAwake().keepAwake(); } catch (e) {} return; }
+  if (!('wakeLock' in navigator)) return;
+  try { wl = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+function releaseWake() {
+  if (nativeAwake()) { try { nativeAwake().allowSleep(); } catch (e) {} }
+  try { wl && wl.release(); } catch (e) {} wl = null;
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !$('#scrPlay').hidden) requestWake(); });
+
+/* ================= 그리기 루프 ================= */
+let lastK = -2;
+function frame() {
+  requestAnimationFrame(frame);
+  if ($('#scrPlay').hidden) return;
+  const s = song(); if (!s) return;
+  const B = bpb(s), cin = s.countIn * B, mode = effMode(s), subs = subsOf(s);
+  let b = beatNow(), k = -1, counting = false, lbl = '';
+  if (b === null || b < 0) {
+    draw($('#cv'), mode, 0, B, {idle:true, subs, loud:false});
+    lbl = b === null ? '▶ 를 누르면 ' + (s.countIn ? `카운트 ${s.countIn}마디 후 시작` : '바로 시작') : '';
+  } else {
+    counting = b < cin;
+    const audible = D.settings.soundOn && (counting || !s.muteAfter);
+    draw($('#cv'), mode, b, B, {loud:!audible, subs, counting});
+    k = Math.floor(b) % B;
+    if (counting) lbl = `카운트인 ${Math.floor(b / B) + 1} / ${s.countIn}`;
+    else if (!audible) lbl = '무음 · 화면으로 박 표시';
+  }
+  $('#vizLbl').textContent = lbl;
+  const key = k + (counting ? 100 : 0);
+  if (key !== lastK) {
+    lastK = key;
+    const d = $('#dots'); d.classList.toggle('cnt', counting);
+    d.querySelectorAll('span').forEach((x, j) => x.classList.toggle('on', j === k));
+  }
+}
+requestAnimationFrame(frame);
+
+/* ================= 시트 ================= */
+let sheetKind = null, ignorePop = false;
+function openSheet(kind) { sheetKind = kind; $('#shw').hidden = false; history.pushState({s:'sheet'}, ''); }
+function closeSheet(fromPop) { if ($('#shw').hidden) return; $('#shw').hidden = true; sheetKind = null; $('#sheet').innerHTML = ''; if (!fromPop) { ignorePop = true; history.back(); } }
+$('#shw').addEventListener('click', e => { if (e.target.id === 'shw') closeSheet(); });
+window.addEventListener('popstate', () => {
+  if (ignorePop) { ignorePop = false; return; }
+  if (!$('#shw').hidden) { closeSheet(true); return; }
+  if (!$('#scrPlay').hidden) {
+    if (P.locked) { history.pushState({s:'play'}, ''); toast('잠금 중이에요 · 🔒 길게 눌러 해제'); return; }
+    closePlay();
+  }
+});
+const sheet = $('#sheet');
+const seg = (k, label, opts, cur) => `<div class="fld"><span>${label}</span><div class="seg" data-k="${k}">${opts.map(([v, l]) => `<button type="button" data-act="seg" data-v="${v}" aria-pressed="${String(v) === String(cur)}">${l}</button>`).join('')}</div></div>`;
+const tgl = (k, label, on, sub = '') => `<button type="button" class="tg" data-act="tgl" data-k="${k}" role="switch" aria-checked="${!!on}"><span>${label}${sub ? `<small>${sub}</small>` : ''}</span><span class="sw"></span></button>`;
+const H = {};
+sheet.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b && H[b.dataset.act]) H[b.dataset.act](b, e); });
+H.close = () => closeSheet();
+
+/* ---------- 곡 편집 ---------- */
+let draft = null, draftIdx = -1, delArm = false;
+const SIGS = [[2, 4], [3, 4], [4, 4], [6, 8], [12, 8]];
+function openEditor(i) {
+  const songs = curSL().songs;
+  draftIdx = i; delArm = false;
+  draft = i >= 0 ? {...songs[i]} : newSong({bpm: songs.length ? songs[songs.length - 1].bpm : 100});
+  draft._custom = !SIGS.some(([n, d]) => n === draft.num && d === draft.den);
+  renderEditor(); openSheet('editor');
+  if (i < 0) setTimeout(() => { const t = $('#fTitle'); t && t.focus(); }, 250);
+}
+function syncDraft() {
+  const v = id => { const el = $('#' + id); return el ? el.value : null; };
+  if (v('fTitle') !== null) draft.title = v('fTitle');
+  if (v('fBpm') !== null) draft.bpm = clamp(parseInt(v('fBpm'), 10) || draft.bpm, 20, 300);
+  if (v('fMemo') !== null) draft.memo = v('fMemo');
+  if (v('fNum') !== null) draft.num = clamp(parseInt(v('fNum'), 10) || draft.num, 1, 16);
+  if (v('fDen') !== null) draft.den = +v('fDen');
+}
+function renderEditor() {
+  const d = draft, sigCur = d._custom ? 'custom' : `${d.num}/${d.den}`;
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><button class="txtbtn" data-act="close">취소</button><h2>${draftIdx >= 0 ? '곡 편집' : '새 곡'}</h2><button class="txtbtn strong" data-act="saveSong">저장</button></div>
+  <div class="sh-body">
+    <label class="fld"><span>곡 제목</span><input id="fTitle" type="text" value="${esc(d.title)}" placeholder="예: 여는 찬양" maxlength="60" autocomplete="off"></label>
+    <div class="fld"><span>BPM</span><div class="bpmedit">
+      <button type="button" class="rbtn" data-act="bpm" data-v="-1" aria-label="BPM 내리기">−</button>
+      <input id="fBpm" type="number" inputmode="numeric" min="20" max="300" value="${d.bpm}" aria-label="BPM">
+      <button type="button" class="rbtn" data-act="bpm" data-v="1" aria-label="BPM 올리기">+</button>
+      <button type="button" class="tapbtn" data-act="tap" id="fTap">박에 맞춰 두드리기</button></div></div>
+    ${seg('sig', '박자', [...SIGS.map(([n, de]) => [`${n}/${de}`, `${n}/${de}`]), ['custom', '직접']], sigCur)}
+    ${d._custom ? `<div class="row2"><input id="fNum" class="inp num" type="number" inputmode="numeric" min="1" max="16" value="${d.num}" aria-label="한 마디 박 수"><span style="flex:0;color:var(--mute)">/</span>
+      <select id="fDen" class="inp" aria-label="박 단위">${[2, 4, 8, 16].map(x => `<option value="${x}" ${x === d.den ? 'selected' : ''}>${x}</option>`).join('')}</select></div>` : ''}
+    ${d.den === 8 && d.num % 3 === 0 ? seg('pulse', 'BPM 기준', [['eighth', `8분음표 (${d.num}박)`], ['dotted', `점4분음표 (${d.num / 3}박)`]], d.pulse) : ''}
+    ${seg('sub', '쪼개기 (작은 소리 · 원 둘레 점)', [['none', '없음'], ['8', '8분'], ['3', '3연음'], ['16', '16분']], d.sub)}
+    ${seg('countIn', '카운트인', [[0, '없음'], [1, '1마디'], [2, '2마디']], d.countIn)}
+    ${tgl('muteAfter', '카운트인 끝나면 소리 끄기', d.muteAfter, '시작 템포는 귀로, 연주 중엔 화면으로')}
+    ${tgl('accent', '첫 박 강조', d.accent)}
+    ${seg('visual', '이 곡 비주얼', [['', '기본'], ...VIS], d.visual || '')}
+    <label class="fld"><span>메모 (재생 화면에 표시)</span><input id="fMemo" type="text" value="${esc(d.memo)}" placeholder="예: 브릿지 하프타임" maxlength="40" autocomplete="off"></label>
+    ${draftIdx >= 0 ? `<div class="sh-actions"><button type="button" data-act="dupSong">복제</button><button type="button" class="danger" data-act="delSong">${delArm ? '한 번 더 누르면 삭제' : '삭제'}</button></div>` : ''}
+  </div>`;
+}
+H.seg = b => {
+  const k = b.parentElement.dataset.k, v = b.dataset.v;
+  if (sheetKind === 'settings') return setSeg(k, v, b);
+  syncDraft();
+  if (k === 'sig') {
+    if (v === 'custom') draft._custom = true;
+    else { const [n, de] = v.split('/').map(Number); draft.num = n; draft.den = de; draft._custom = false; if (de === 8) { draft.pulse = 'dotted'; if (draft.sub === 'none') draft.sub = '3'; } }
+  } else if (k === 'countIn') draft.countIn = +v;
+  else if (k === 'visual') draft.visual = v || null;
+  else draft[k] = v;
+  const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st;
+};
+H.tgl = b => {
+  const k = b.dataset.k, on = b.getAttribute('aria-checked') !== 'true';
+  b.setAttribute('aria-checked', on);
+  if (sheetKind === 'settings') { D.settings[k] = on; save(); if (k === 'wake') on ? requestWake() : releaseWake(); }
+  else draft[k] = on;
+};
+H.bpm = b => { syncDraft(); draft.bpm = clamp(draft.bpm + +b.dataset.v, 20, 300); $('#fBpm').value = draft.bpm; };
+let edTap = null;
+H.tap = () => {
+  if (!edTap) edTap = makeTapper((v, n) => { if (v) { draft.bpm = clamp(v, 20, 300); $('#fBpm').value = draft.bpm; $('#fTap').textContent = `${draft.bpm} BPM · ${n}번`; } else $('#fTap').textContent = `계속 두드리세요 · ${n}번`; });
+  edTap();
+};
+H.saveSong = () => {
+  syncDraft();
+  const s = {...draft}; delete s._custom;
+  s.title = s.title.trim(); s.memo = s.memo.trim();
+  if (!isDotted(s)) s.pulse = 'eighth';
+  const songs = curSL().songs;
+  if (draftIdx >= 0) songs[draftIdx] = s; else songs.push(s);
+  save(); closeSheet(); renderList(); edTap = null;
+  if (!$('#scrPlay').hidden && draftIdx === P.i) { stop(); P.bpm = s.bpm; renderPlay(); }
+  toast('저장했어요');
+};
+H.dupSong = () => {
+  const songs = curSL().songs, c = newSong({...songs[draftIdx], id:uid(), title:(songs[draftIdx].title || '제목 없음') + ' 복사'});
+  songs.splice(draftIdx + 1, 0, c); save(); closeSheet(); renderList(); if (!$('#scrPlay').hidden) renderPlay(); toast('복제했어요');
+};
+H.delSong = () => {
+  if (!delArm) { delArm = true; syncDraft(); renderEditor(); return; }
+  const songs = curSL().songs; songs.splice(draftIdx, 1); save(); closeSheet(); renderList();
+  if (!$('#scrPlay').hidden) { if (!songs.length) { history.back(); } else { P.i = Math.min(P.i, songs.length - 1); loadSong(); } }
+  toast('삭제했어요');
+};
+
+/* ---------- 셋리스트 고르기 ---------- */
+let slDelArm = false;
+function openSetlists() { slDelArm = false; renderSetlists(); openSheet('setlists'); }
+function renderSetlists() {
+  const cur = curSL();
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><span></span><h2>셋리스트</h2><button class="txtbtn" data-act="close">닫기</button></div>
+  <div class="sh-body">
+    <div class="slrows">${D.setlists.map(x => `<button class="slrow" data-act="pickSL" data-id="${x.id}" aria-current="${x.id === cur.id}"><span>${esc(x.name)}</span><span>${x.songs.length}곡</span></button>`).join('')}</div>
+    <div class="fld"><span>새 셋리스트</span><div class="row2"><input id="newSL" class="inp" type="text" placeholder="예: 주일 2부 · 11월 2일" maxlength="40" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="addSL">추가</button></div></div>
+    <div class="sec-t">지금 셋리스트: ${esc(cur.name)}</div>
+    <div class="fld"><span>이름 바꾸기</span><div class="row2"><input id="renSL" class="inp" type="text" value="${esc(cur.name)}" maxlength="40" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="renSL">변경</button></div></div>
+    <div class="sh-actions"><button type="button" data-act="dupSL">복제</button><button type="button" class="danger" data-act="delSL" ${D.setlists.length < 2 ? 'disabled' : ''}>${slDelArm ? '한 번 더 누르면 삭제' : '삭제'}</button></div>
+  </div>`;
+}
+H.pickSL = b => { D.cur = b.dataset.id; save(); renderList(); closeSheet(); };
+H.addSL = () => { const n = $('#newSL').value.trim() || '새 셋리스트'; const x = {id:uid(), name:n, songs:[]}; D.setlists.push(x); D.cur = x.id; save(); renderList(); closeSheet(); toast(`"${n}" 만들었어요`); };
+H.renSL = () => { const n = $('#renSL').value.trim(); if (!n) return; curSL().name = n; save(); renderList(); renderSetlists(); toast('이름을 바꿨어요'); };
+H.dupSL = () => { const c = curSL(), x = {id:uid(), name:c.name + ' 복사', songs:c.songs.map(s => ({...s, id:uid()}))}; D.setlists.push(x); D.cur = x.id; save(); renderList(); renderSetlists(); toast('복제했어요'); };
+H.delSL = () => {
+  if (D.setlists.length < 2) return;
+  if (!slDelArm) { slDelArm = true; renderSetlists(); return; }
+  D.setlists = D.setlists.filter(x => x.id !== D.cur); D.cur = D.setlists[0].id; save(); renderList(); closeSheet(); toast('삭제했어요');
+};
+
+/* ---------- 설정 ---------- */
+function openSettings() { renderSettings(); openSheet('settings'); }
+function renderSettings() {
+  const S = D.settings, canVib = !!navigator.vibrate;
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><span></span><h2>설정</h2><button class="txtbtn" data-act="close">닫기</button></div>
+  <div class="sh-body">
+    ${seg('visual', '기본 비주얼', VIS, S.visual)}
+    ${seg('sound', '클릭 소리', SOUNDS, S.sound)}
+    <button type="button" class="pill" data-act="preview" style="align-self:flex-start">▶ 들어보기</button>
+    <label class="fld"><span>볼륨</span><input id="sVol" type="range" min="0" max="1" step="0.05" value="${S.volume}"></label>
+    <label class="fld"><span>쪼개기 볼륨</span><input id="sSub" type="range" min="0" max="1" step="0.05" value="${S.subVol}"></label>
+    ${seg('vibrate', '소리 꺼졌을 때 진동', [['off', '끔'], ['down', '첫 박만'], ['all', '매 박']], S.vibrate)}
+    ${canVib ? '' : '<p class="note">이 폰(브라우저)은 진동을 지원하지 않아요. 아이폰 웹앱은 진동이 안 돼요.</p>'}
+    ${tgl('wake', '재생 화면에서 화면 꺼짐 방지', S.wake)}
+    ${tgl('nextAuto', '재생 중 다음 곡으로 넘기면 바로 시작', S.nextAuto, '끄면 넘긴 뒤 정지 상태로 기다려요')}
+    <div class="sec-t">백업</div>
+    <div class="sh-actions" style="padding-top:0"><button type="button" data-act="exportD">내보내기</button><button type="button" data-act="importD">불러오기</button></div>
+    <p class="note">불러온 셋리스트는 지금 목록에 추가돼요 (기존 것은 그대로).</p>
+    <div class="sec-t">조작</div>
+    <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전</p>
+    <p class="note" style="color:var(--dim)">카운트인 v1.0 · 데이터는 이 기기에만 저장돼요</p>
+  </div>`;
+  $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
+  $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
+}
+function setSeg(k, v, b) {
+  D.settings[k] = v; save();
+  b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  if (k === 'sound') H.preview();
+  if (!$('#scrPlay').hidden) renderPlay();
+}
+H.preview = () => { ensureCtx(); const t = E.ctx.currentTime + .05; for (let j = 0; j < 4; j++) click(t + j * .5, j === 0 ? 2 : 1); };
+H.exportD = async () => {
+  const d = new Date(), name = `countin-backup-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+  const blob = new Blob([JSON.stringify(D, null, 1)], {type:'application/json'});
+  try {
+    const f = new File([blob], name, {type:'application/json'});
+    if (navigator.canShare && navigator.canShare({files:[f]})) { await navigator.share({files:[f], title:'카운트인 백업'}); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('백업 파일을 저장했어요');
+};
+H.importD = () => $('#fileIn').click();
+$('#fileIn').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = fix(JSON.parse(await f.text()));
+    const add = d.setlists.map(x => ({...x, id:uid(), songs:x.songs.map(s => ({...s, id:uid()}))}));
+    D.setlists.push(...add); save(); renderList(); closeSheet(); toast(`셋리스트 ${add.length}개를 불러왔어요`);
+  } catch (err) { toast('카운트인 백업 파일이 아니에요'); }
+};
+
+/* ================= 시작 ================= */
+renderList();
+history.replaceState({s:'list'}, '');
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1') && !window.Capacitor) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+})();
+</script>
+</body>
+</html>
