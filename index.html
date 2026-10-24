@@ -367,7 +367,6 @@ function draw(cv, mode, b, beats, o) {
   const hit = o.idle ? 0 : Math.pow(1 - ph, 3);
   g.globalAlpha = o.idle ? .35 : 1;
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  if (o.counting) mode = 'count';
 
   if (mode === 'pulse') {
     const base = m * (o.loud ? .2 : .16), R = Math.min(base * 1.9, m * .46);
@@ -732,7 +731,7 @@ function renderSettings() {
     <p class="note">불러온 셋리스트는 지금 목록에 추가돼요 (기존 것은 그대로).</p>
     <div class="sec-t">조작</div>
     <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전</p>
-    <p class="note" style="color:var(--dim)">카운트인 v1.0 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v1.1 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
