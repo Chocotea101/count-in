@@ -301,6 +301,25 @@ textarea.inp{min-height:120px;resize:vertical;line-height:1.5;font-size:15px}
 .caltap.hit{border-color:var(--text);background:var(--raise)}
 .calres{font-size:15px;line-height:1.5}
 .calres b{font-family:var(--f-num);font-size:20px}
+/* 따라가기 화면 (참여자): 조작은 숨기고 박과 역할만 */
+.follow .bpmrow .rbtn,.follow #bTap,.follow .savebpm,.follow .bpmbox small{display:none!important}
+.follow #bTitle{pointer-events:none}
+.follow .bpmbox .big{font-size:40px;color:var(--mute)}
+.follow .ph-mid .t{font-size:20px}
+#bRole{flex:none;font-size:13px;padding:6px 12px;white-space:nowrap}
+.dots span.tg{box-shadow:inset 0 0 0 2px var(--text)}
+.rolecard{display:flex;flex-direction:column;gap:4px;text-align:left;background:var(--raise);border:1.5px solid var(--line);border-radius:16px;padding:14px 16px;width:100%}
+.rolecard[aria-pressed="true"]{border-color:var(--text)}
+.rolecard b{font-size:17px}
+.rolecard small{font-size:13px;color:var(--mute);line-height:1.5}
+/* 리더 큐 카드 */
+.cuerow{display:none;gap:8px;justify-content:center;flex-wrap:wrap;padding:8px 8px 0}
+.leading .cuerow{display:flex}
+.cuerow button{height:48px;min-width:72px;padding:0 14px;border:1px solid var(--line);border-radius:12px;font-weight:700;font-size:15px}
+.cuerow button:active{background:var(--text);color:var(--ink)}
+.cuecard{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);z-index:14;background:var(--text);color:var(--ink);font-size:clamp(40px,13vw,88px);font-weight:900;letter-spacing:-.02em;padding:16px 36px;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap;animation:cuepop .25s ease-out}
+@keyframes cuepop{from{transform:translate(-50%,-50%) scale(.7);opacity:.3}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.cuecard{animation:none}}
 .librow{display:flex;align-items:center;gap:10px;background:var(--raise);border-radius:12px;padding:10px 12px}
 .librow .nm{flex:1;min-width:0}
 .librow .nm b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -382,6 +401,7 @@ textarea.inp{min-height:120px;resize:vertical;line-height:1.5;font-size:15px}
   <header class="ph">
     <button id="bBack" class="back lockable" aria-label="목록으로" style="display:inline-flex;align-items:center;gap:2px"><span data-icon="back"></span>목록</button>
     <button class="ph-mid lockable" id="bTitle" aria-label="이 곡 편집"><div class="t" id="pTitle"></div><div class="sub num" id="pSub"></div></button>
+    <button id="bRole" class="pill lockable" hidden aria-label="내 역할 바꾸기"></button>
     <button id="bSheet" class="icbtn lockable" aria-pressed="false" aria-label="악보 보기" hidden data-icon="sheet"></button>
     <button id="bLock" class="icbtn" aria-pressed="false" aria-label="화면 잠금" data-icon="unlock"></button>
   </header>
@@ -408,6 +428,7 @@ textarea.inp{min-height:120px;resize:vertical;line-height:1.5;font-size:15px}
           <button id="barPlus" class="lockable" aria-label="마디 하나 더하기">+</button>
         </div>
         <div class="pgnav num" id="pgNav" hidden><span id="pgNo">1/1</span></div>
+        <div class="cuecard" id="cueCard" hidden></div>
         <button class="pgside l" id="pgPrev" aria-label="이전 쪽" data-icon="chevL"></button>
         <button class="pgside r" id="pgNext" aria-label="다음 쪽" data-icon="chevR"></button>
       </div>
@@ -422,6 +443,7 @@ textarea.inp{min-height:120px;resize:vertical;line-height:1.5;font-size:15px}
       </div>
       <div class="modes" id="modes" hidden></div>
       <div class="nextup"><span>다음 곡</span><b id="pNext"></b></div>
+      <div class="cuerow" id="cueRow" role="group" aria-label="큐 카드 보내기"><button data-cue="chorus">후렴</button><button data-cue="again">한 번 더</button><button data-cue="bridge">브릿지</button><button data-cue="end">엔딩</button></div>
       <div class="ctrl">
         <button id="bPrev" class="lockable" aria-label="이전 곡"><span class="ic" data-icon="prev"></span>이전</button>
         <button class="main" id="bPlay" aria-label="재생" data-icon="play"></button>
@@ -496,7 +518,7 @@ document.querySelectorAll('[data-icon]').forEach(el => { el.insertAdjacentHTML('
 
 /* ================= 데이터 ================= */
 const KEY = 'countin.v1';
-const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true, visOffset:0, songFlip:2, myName:'', devId:''};
+const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true, visOffset:0, songFlip:2, myName:'', devId:'', role:''};
 const VIS = [['pulse','원'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자'],['edge','테두리']];
 const SOUNDS = [['wood','우드블록'],['beep','비프'],['cow','카우벨'],['stick','사이드스틱']];
 function newSong(o = {}) {
@@ -515,7 +537,7 @@ function seed() {
 // 곡(sheet)은 {items:[{key, page}]}로 여러 PDF의 쪽을 순서대로 가리킴 (page 0 = 그 PDF 전체)
 function fix(d) {
   d.settings = Object.assign({...DEF_SET}, d.settings || {});
-  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), pdfs:Array.isArray(x.pdfs) ? x.pdfs.map(String) : [], marks:x.marks && typeof x.marks === 'object' ? x.marks : {}, ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true}, x.ctl || {}), linked:x.linked || null, shareFrom:x.shareFrom || null, songs:x.songs.map(s => newSong(s))}));
+  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), pdfs:Array.isArray(x.pdfs) ? x.pdfs.map(String) : [], marks:x.marks && typeof x.marks === 'object' ? x.marks : {}, ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true, cue:true}, x.ctl || {}), linked:x.linked || null, shareFrom:x.shareFrom || null, followUI:typeof x.followUI === 'boolean' ? x.followUI : !!(x.linked || x.shareFrom), songs:x.songs.map(s => newSong(s))}));
   d.setlists.forEach(x => { if (x.name === '예시 셋리스트') x.name = '예시 프로젝트'; });
   if (!d.setlists.some(x => x.id === d.cur)) d.cur = d.setlists.length ? d.setlists[0].id : null;
   d.library = (Array.isArray(d.library) ? d.library : []).filter(x => x && x.key).map(x => ({key:String(x.key), name:String(x.name || '악보'), pages:+x.pages || 0}));
@@ -757,6 +779,7 @@ function beatNow() {
 const COL = (() => { const cs = getComputedStyle(document.documentElement), g = k => cs.getPropertyValue(k).trim(); return {raise:g('--raise'), line:g('--line'), text:g('--text'), mute:g('--mute'), dim:g('--dim'), beat:g('--beat'), down:g('--down'), cue:g('--cue'), ink:g('--ink')}; })();
 const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
 const NUMF = getComputedStyle(document.documentElement).getPropertyValue('--f-num');
+const BODYF0 = getComputedStyle(document.documentElement).getPropertyValue('--f-body');
 function fit(cv, maxD = 2.5) {
   const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, maxD);
   const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
@@ -803,6 +826,27 @@ function draw(cv, mode, b, beats, o) {
     for (let j = 0; j < beats; j++) { const rx = Math.min(m * .07, step * .4 || m * .07) * (j === 0 ? 1.45 : 1); g.beginPath(); g.ellipse(sx(j), floor + m * .05, rx, m * .022 * (j === 0 ? 1.45 : 1), 0, 0, 7); g.fillStyle = j === k && !o.idle ? rgba(j === 0 ? COL.down : COL.beat, .3 + .7 * hit) : COL.line; g.fill(); }
     const to = (k + 1) % beats, x = sx(k) + (sx(to) - sx(k)) * (o.idle ? 0 : ph), y = floor - Math.sin(Math.PI * (o.idle ? 0 : ph)) * H * .55;
     g.beginPath(); g.arc(x, y, m * .065, 0, 7); g.fillStyle = to === 0 && ph > .5 ? COL.down : COL.text; g.fill();
+  } else if (mode === 'approach') {
+    // 따라가기: 칠 박이 오기 한 박 전부터 바깥 원이 좁혀 와서, 닿는 순간 '지금'. 쉬는 박은 작은 점
+    const T = o.targets || Array(beats).fill(true), cx = W / 2, cy = H * .46, R = m * .17;
+    let nb = Math.ceil(b - 1e-4), guard = 0;
+    while (!T[((nb % beats) + beats) % beats] && guard++ < beats * 2) nb++;
+    const dt = nb - b, isT = T[k], flash = isT && !o.idle ? Math.pow(1 - ph, 2.2) : 0;
+    const tc = o.counting ? COL.cue : k === 0 ? COL.down : COL.beat;
+    g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fillStyle = rgba(isT ? tc : COL.line, o.idle ? .25 : .18 + .82 * flash); g.fill();
+    g.lineWidth = m * .014; g.strokeStyle = COL.text; g.globalAlpha = o.idle ? .3 : .7; g.stroke(); g.globalAlpha = 1;
+    if (!o.idle && dt > .02 && dt <= 1) { g.beginPath(); g.arc(cx, cy, R * (1 + 1.8 * dt), 0, 7); g.strokeStyle = rgba(COL.text, .95 - dt * .6); g.lineWidth = m * .02; g.stroke(); }
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (flash > .25) { g.fillStyle = COL.ink; g.font = `900 ${m * .1}px ${BODYF0}`; g.fillText('지금', cx, cy); }
+    else if (!isT && !o.idle) { g.beginPath(); g.arc(cx, cy, m * .025 * (1 + hit), 0, 7); g.fillStyle = COL.mute; g.fill(); }
+    // 아래: 마디 안 박 칸 (칠 박은 크게)
+    const bw = Math.min(W * .8 / beats, m * .2), y = H * .86, x0 = W / 2 - bw * beats / 2;
+    for (let j = 0; j < beats; j++) {
+      const on = j === k && !o.idle, rr = (T[j] ? .32 : .14) * bw;
+      g.beginPath(); g.arc(x0 + bw * (j + .5), y, rr, 0, 7);
+      g.fillStyle = on ? (T[j] ? tc : COL.text) : T[j] ? COL.line : COL.dim; g.fill();
+      if (T[j]) { g.lineWidth = m * .006; g.strokeStyle = COL.text; g.globalAlpha = .5; g.stroke(); g.globalAlpha = 1; }
+    }
   } else if (mode === 'edge') {
     // 박은 화면 테두리(edgeCv)가 보여주고, 가운데는 지금 박 번호만 조용히
     g.globalAlpha = o.idle ? .35 : .45 + .55 * hit;
@@ -1071,6 +1115,27 @@ new ResizeObserver(() => { if (!P.sheetOn) return; clearTimeout(rsT); rsT = setT
 
 function onTiming() { if (window.__syncReady) syncSendState(); }
 
+/* ================= 역할 카드 (따라가기 화면) ================= */
+const ROLES = {
+  beat:{short:'박 따라가기', name:'박 따라가기', desc:'모든 박에 원이 다가와요. 닿는 순간 손뼉·발·악기로 박을 짚어요.'},
+  shaker:{short:'셰이커 2·4박', name:'셰이커·탬버린', desc:'2박과 4박에만 흔들어요(3박자는 2·3박). 쉬는 박은 작은 점으로만 보여요.'},
+};
+function roleTargets(B) {
+  if (!P.followOn || (D.settings.role || 'beat') === 'beat') return Array(B).fill(true);
+  return B === 3 ? [false, true, true] : Array.from({length:B}, (_, j) => j % 2 === 1 || B === 1);
+}
+function openRolePick() {
+  const cur = D.settings.role || 'beat';
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><span></span><h2>내 역할</h2><button class="txtbtn" data-act="close">닫기</button></div>
+  <div class="sh-body">
+    ${Object.entries(ROLES).map(([k, r]) => `<button type="button" class="rolecard" data-act="pickRole" data-k="${k}" aria-pressed="${k === cur}"><b>${r.name}</b><small>${r.desc}</small></button>`).join('')}
+    <button type="button" class="pill" data-act="fullUI" style="align-self:flex-start">모든 기능 화면으로 보기</button>
+  </div>`;
+  openSheet('role');
+}
+$('#bRole').onclick = openRolePick;
+
 /* ================= 꾹 눌러 끌어서 순서 바꾸기 ================= */
 // li[data-i]를 0.38초 누르고 있으면 들려서 따라오고, 놓으면 onDrop(새 순서의 원래 번호 배열)
 function sortable(ul, onDrop) {
@@ -1177,6 +1242,7 @@ function renderList() {
   const empty = !sl.songs.length;
   $('#emptyList').hidden = !empty; ul.hidden = empty;
   $('#bStart').disabled = empty;
+  $('#bStart').textContent = sl.followUI ? '▶ 따라가기 시작' : '▶ 1번부터 시작';
 }
 $('#songList').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
@@ -1197,8 +1263,9 @@ const song = () => curSL().songs[P.i];
 const effMode = s => s.visual || D.settings.visual;
 function show(name) { $('#scrHome').hidden = name !== 'home'; $('#scrList').hidden = name !== 'list'; $('#scrPlay').hidden = name !== 'play'; }
 function openPlay(i, autoplay) {
-  P.i = i; loadSong(); show('play');
+  P.i = i; P.followOn = !!(curSL() && curSL().followUI); loadSong(); show('play');
   history.pushState({s:'play'}, '');
+  if (P.followOn && !D.settings.role) setTimeout(openRolePick, 200);
   requestWake();
   if (autoplay) start();
 }
@@ -1222,8 +1289,11 @@ function renderPlay() {
   const nx = list[P.i + 1];
   $('#pNext').textContent = nx ? `${nx.title || '제목 없음'} · ${nx.bpm}` : '마지막 곡이에요';
   $('#bNext').disabled = !nx; $('#bPrev').disabled = P.i === 0;
-  const dots = $('#dots'), B = bpb(eSong());
-  dots.innerHTML = Array.from({length:B}, (_, j) => `<span${j === 0 ? ' class="d"' : ''}></span>`).join('');
+  const dots = $('#dots'), B = bpb(eSong()), TG = P.followOn ? roleTargets(B) : null;
+  dots.innerHTML = Array.from({length:B}, (_, j) => `<span class="${j === 0 ? 'd' : ''}${TG && TG[j] ? ' tg' : ''}"></span>`).join('');
+  $('#scrPlay').classList.toggle('follow', !!P.followOn);
+  $('#bRole').hidden = !P.followOn; $('#bRole').textContent = ROLES[D.settings.role || 'beat'].short;
+  $('#scrPlay').classList.toggle('leading', !!(window.__syncReady && SY.role === 'leader' && D.cur === SY.projId));
   $('#modes').innerHTML = VIS.map(([v, l]) => `<button data-m="${v}" aria-pressed="${effMode(s) === v}">${l}</button>`).join('');
   updBpm(); updSnd(); updPlayBtn(); lastK = -2;
   applySheet();
@@ -1356,15 +1426,15 @@ function frame() {
   if ($('#scrPlay').hidden) { if (!ec.hidden) ec.hidden = true; return; }
   const s = song(); if (!s) return;
   const sheetOn = P.sheetOn && !!s.sheet;
-  const es = eSong(), B = bpb(es), cin = es.countIn * B, mode = sheetOn ? 'edge' : effMode(s), subs = subsOf(es);
+  const es = eSong(), B = bpb(es), cin = es.countIn * B, mode = sheetOn ? 'edge' : P.followOn ? 'approach' : effMode(s), subs = subsOf(es), targets = roleTargets(B);
   let b = beatNow(), k = -1, counting = false, lbl = '', audible = false, bar = 0;
   if (b === null || b < 0) {
-    if (!sheetOn) draw($('#cv'), mode, 0, B, {idle:true, subs, loud:false});
+    if (!sheetOn) draw($('#cv'), mode, 0, B, {idle:true, subs, loud:false, targets});
     lbl = b === null ? (s.countIn ? `COUNT ${s.countIn}` : '바로 시작') : '';
   } else {
     counting = b < cin;
     audible = D.settings.soundOn && (counting || !es.muteAfter);
-    if (!sheetOn) draw($('#cv'), mode, b, B, {loud:!audible, subs, counting});
+    if (!sheetOn) draw($('#cv'), mode, b, B, {loud:!audible, subs, counting, targets});
     k = Math.floor(b) % B;
     if (counting) lbl = `카운트 ${Math.floor(b / B) + 1}/${es.countIn}`;
     else { bar = Math.max(1, Math.floor((b - cin) / B) + 1 + P.barOff); }
@@ -1422,6 +1492,8 @@ const sheet = $('#sheet');
 const seg = (k, label, opts, cur, dis) => `<div class="fld"><span>${label}</span><div class="seg" data-k="${k}">${opts.map(([v, l]) => `<button type="button" data-act="seg" data-v="${v}" aria-pressed="${String(v) === String(cur)}"${dis ? ' disabled' : ''}>${l}</button>`).join('')}</div></div>`;
 const tgl = (k, label, on, sub = '') => `<button type="button" class="tg" data-act="tgl" data-k="${k}" role="switch" aria-checked="${!!on}"><span>${label}${sub ? `<small>${sub}</small>` : ''}</span><span class="sw"></span></button>`;
 const H = {};
+H.pickRole = b => { D.settings.role = b.dataset.k; save(); closeSheet(); renderPlay(); };
+H.fullUI = () => { const p = curSL(); p.followUI = false; P.followOn = false; save(); closeSheet(); renderPlay(); };
 sheet.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b && H[b.dataset.act]) H[b.dataset.act](b, e); });
 H.close = () => { if (sheetKind === 'editor' && !edGuard()) return; closeSheet(); };
 
@@ -1691,6 +1763,7 @@ function renderProjMenu() {
       ${D.library.some(x => !p.pdfs.includes(x.key)) ? `<button type="button" class="pill" style="flex:0 0 auto" data-act="pmImp" aria-pressed="${pmImp}">다른 프로젝트 악보 가져오기</button>` : ''}
     </div>
     ${pmImp ? `<div class="slrows">${D.library.filter(x => !p.pdfs.includes(x.key)).map(x => `<button type="button" class="slrow" data-act="pmImpOne" data-k="${esc(x.key)}"><span>${esc(x.name)}<small style="display:block;color:var(--mute);font-size:12px">${esc(projsWith(x.key).map(q => q.name).join(', ') || '프로젝트 없음')}</small></span><span>${x.pages ? x.pages + '쪽 · ' : ''}가져오기</span></button>`).join('')}</div>` : ''}
+    <button type="button" class="tg" data-act="pmFollow" role="switch" aria-checked="${!!p.followUI}"><span>이 기기에선 따라가기 화면으로<small>조작 없이 박·역할만 크게 보여요 (팀원용)</small></span><span class="sw"></span></button>
     <div class="sec-t">이번 주 콘티 보내기</div>
     <button type="button" class="pill" data-act="pmShare" style="align-self:flex-start;display:inline-flex;align-items:center;gap:6px">${ic('share')}링크·QR로 보내기</button>
     <p class="note">받은 사람이 링크를 열면 이 곡 목록과 BPM이 그 기기에 저장돼요. 악보 PDF는 들어가지 않아요.</p>
@@ -1702,6 +1775,7 @@ function renderProjMenu() {
 }
 const refreshLists = () => { renderHome(); if (!$('#scrList').hidden) renderList(); };
 const pmProj = () => D.setlists.find(x => x.id === pmId);
+H.pmFollow = () => { const p = pmProj(); p.followUI = !p.followUI; save(); rerenderPM(); if (!$('#scrList').hidden) renderList(); };
 const rerenderPM = () => { const st = sheet.scrollTop; renderProjMenu(); sheet.scrollTop = st; };
 H.pmPdfAdd = () => pickPdfFile(e => { const p = pmProj(); if (p && !p.pdfs.includes(e.key)) p.pdfs.push(e.key); save(); refreshLists(); if (sheetKind === 'projmenu') rerenderPM(); });
 H.pmImp = () => { pmImp = !pmImp; rerenderPM(); };
@@ -1776,7 +1850,7 @@ function renderSettings() {
     <p class="note">불러온 셋리스트는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v2.3 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v2.4 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -2026,7 +2100,7 @@ function syncLeave(silent) {
 function refreshSyncViews() {
   renderHome();
   if (!$('#scrList').hidden) renderList();
-  if (!$('#scrPlay').hidden) { const s = song(), list = curSL().songs; if (s) $('#pSub').textContent = `${syncTag(curSL())}${P.i + 1} / ${list.length} · ${sigL(s)}`; }
+  if (!$('#scrPlay').hidden) { const s = song(), list = curSL().songs; if (s) $('#pSub').textContent = `${syncTag(curSL())}${P.i + 1} / ${list.length} · ${sigL(s)}`; $('#scrPlay').classList.toggle('leading', SY.role === 'leader' && D.cur === SY.projId); }
   if (sheetKind === 'projmenu') rerenderPM();
 }
 
@@ -2121,6 +2195,7 @@ function memberData(d) {
   else if (d.t === 'pdf') receivePdf(d);
   else if (d.t === 'state') applyState(d);
   else if (d.t === 'page') applyPage(d);
+  else if (d.t === 'cue') { const p = linkedProj(); if (p && p.ctl.on && p.ctl.cue !== false && D.cur === p.id && !$('#scrPlay').hidden) { showCue(d.c); try { navigator.vibrate && navigator.vibrate([60, 40, 60]); } catch (e) {} } }
 }
 const linkedProj = () => D.setlists.find(x => x.id === SY.projId);
 // 리더 곡 목록을 받되, 같은 곡(id)의 내 개인 설정은 남김
@@ -2135,6 +2210,7 @@ async function applyProj(sn, leader) {
   const fresh = !p;
   if (!p) { p = {id, marks:{}}; D.setlists.unshift(p); }
   Object.assign(p, {name:sn.name, pdfs:[...sn.pdfs], ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true}, sn.ctl), songs:mergeSongs(p.songs, sn.songs), linked:{leader:String(leader || '리더')}});
+  if (typeof p.followUI !== 'boolean') p.followUI = true;
   SY.projId = id; SY.leader = p.linked.leader;
   const need = [];
   for (const L of sn.lib || []) {
@@ -2194,6 +2270,19 @@ function applyPage(d) {
   if (follows(p, song(), 'page') && P.sheetOn) gotoPageIdx(d.k);
 }
 
+const CUES = {chorus:'후렴', again:'한 번 더', bridge:'브릿지', end:'엔딩'};
+let cueT;
+function showCue(c) {
+  const el = $('#cueCard'); el.textContent = CUES[c] || c; el.hidden = false;
+  el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
+  clearTimeout(cueT); cueT = setTimeout(() => el.hidden = true, 2600);
+}
+$('#cueRow').addEventListener('click', e => {
+  const b = e.target.closest('[data-cue]'); if (!b) return;
+  showCue(b.dataset.cue);
+  if (SY.role === 'leader') SY.conns.forEach(c => { try { c.send({t:'cue', c:b.dataset.cue}); } catch (x) {} });
+});
+
 /* ---- 화면 ---- */
 function syncSection(p) {
   const isLeader = SY.role === 'leader' && SY.projId === p.id, isMember = SY.role === 'member' && SY.projId === p.id;
@@ -2211,6 +2300,7 @@ function syncSection(p) {
     ${t('song', '곡 이동')}
     ${t('page', '악보 넘김')}
     ${t('bpm', 'BPM 변경')}
+    ${t('cue', '큐 카드 (후렴·한 번 더·브릿지·엔딩)')}
     <p class="note">곡마다 따로 정하려면 곡 편집 → "같이 맞출 때 이 곡은 리더를".</p>`;
 }
 H.ctlTgl = b => {
@@ -2413,7 +2503,7 @@ H.rcvSave = () => {
   const songs = d.s.map(a => newSong({id:a[0], title:String(a[1] || ''), bpm:clamp(+a[2] || 100, 20, 300), num:+a[3] || 4, den:+a[4] || 4, pulse:a[5] ? 'dotted' : 'eighth', sub:a[6] || 'none', countIn:+a[7] || 0, memo:String(a[8] || '')}));
   let p = D.setlists.find(x => x.shareFrom === d.id);
   if (p) { p.name = d.n; p.songs = mergeSongs(p.songs, songs); }
-  else { p = {id:uid(), shareFrom:d.id, name:String(d.n || '받은 콘티'), pdfs:[], marks:{}, ctl:{on:true, start:true, song:true, page:true, bpm:true}, linked:null, songs}; D.setlists.unshift(p); }
+  else { p = {id:uid(), shareFrom:d.id, name:String(d.n || '받은 콘티'), pdfs:[], marks:{}, ctl:{on:true, start:true, song:true, page:true, bpm:true, cue:true}, linked:null, followUI:true, songs}; D.setlists.unshift(p); }
   save(); closeSheet(); renderHome();
   setTimeout(() => openProject(p.id), 60);
 };
