@@ -383,23 +383,31 @@ function seed() {
   ]};
   return {v:1, setlists:[s], cur:s.id, settings:{...DEF_SET}, library:[]};
 }
-// 악보함(library): PDF는 한 번만 넣고, 곡(sheet)은 {key, pages:[쪽 번호…] | null=전체}로 고른 쪽만 가리킴
+// 악보함(library): PDF 파일 목록(이 기기에 저장). 프로젝트는 pdfs:[key…]로 쓸 PDF를 고르고,
+// 곡(sheet)은 {items:[{key, page}]}로 여러 PDF의 쪽을 순서대로 가리킴 (page 0 = 그 PDF 전체)
 function fix(d) {
   d.settings = Object.assign({...DEF_SET}, d.settings || {});
-  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), songs:x.songs.map(s => newSong(s))}));
+  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), pdfs:Array.isArray(x.pdfs) ? x.pdfs.map(String) : [], songs:x.songs.map(s => newSong(s))}));
   d.setlists.forEach(x => { if (x.name === '예시 셋리스트') x.name = '예시 프로젝트'; });
   if (!d.setlists.some(x => x.id === d.cur)) d.cur = d.setlists.length ? d.setlists[0].id : null;
   d.library = (Array.isArray(d.library) ? d.library : []).filter(x => x && x.key).map(x => ({key:String(x.key), name:String(x.name || '악보'), pages:+x.pages || 0}));
   const lk = new Set(d.library.map(x => x.key));
-  d.setlists.forEach(sl => sl.songs.forEach(s => {
-    if (!s.sheet || !s.sheet.key) { s.sheet = null; return; }
-    if (!lk.has(s.sheet.key)) { d.library.push({key:s.sheet.key, name:String(s.sheet.name || '악보'), pages:0}); lk.add(s.sheet.key); }
-    s.sheet = {key:s.sheet.key, pages:Array.isArray(s.sheet.pages) ? s.sheet.pages.map(Number).filter(n => n > 0) : null};
-    if (s.sheet.pages && !s.sheet.pages.length) s.sheet = null;
-  }));
+  d.setlists.forEach(sl => {
+    sl.songs.forEach(s => {
+      const sh = s.sheet;
+      if (!sh) { s.sheet = null; return; }
+      let items = Array.isArray(sh.items) ? sh.items : sh.key ? (Array.isArray(sh.pages) ? sh.pages.map(page => ({key:sh.key, page})) : [{key:sh.key, page:0}]) : [];
+      items = items.filter(it => it && it.key).map(it => ({key:String(it.key), page:Math.max(0, +it.page || 0)}));
+      items.forEach(it => { if (!lk.has(it.key)) { d.library.push({key:it.key, name:String(sh.name || '악보'), pages:0}); lk.add(it.key); } });
+      s.sheet = items.length ? {items} : null;
+    });
+    // 곡이 쓰는 PDF는 그 프로젝트 악보 목록에도 넣어 둠
+    sl.songs.forEach(s => s.sheet && s.sheet.items.forEach(it => { if (!sl.pdfs.includes(it.key)) sl.pdfs.push(it.key); }));
+    sl.pdfs = sl.pdfs.filter((k, i, a) => lk.has(k) && a.indexOf(k) === i);
+  });
   return d;
 }
-function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.setlists) return fix(d); } catch (e) {} return seed(); }
+function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.setlists) return fix(d); } catch (e) {} return fix(seed()); }
 let D = load();
 function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { toast('저장 공간이 부족해서 저장하지 못했어요'); } }
 save();
@@ -420,7 +428,17 @@ function pagesLabel(p) {
   }
   return out.join(', ') + '쪽';
 }
-const meta = s => [s.sheet ? '𝄞 ' + pagesLabel(s.sheet.pages) : '', sigL(s), SUBL[s.sub], s.countIn ? `카운트 ${s.countIn}마디` : '', s.memo].filter(Boolean).join(' · ');
+const libOf = k => D.library.find(x => x.key === k);
+const usesKey = (s, k) => !!(s.sheet && s.sheet.items.some(it => it.key === k));
+function dropKey(s, k) { if (!s.sheet) return; s.sheet.items = s.sheet.items.filter(it => it.key !== k); if (!s.sheet.items.length) s.sheet = null; }
+// 여러 PDF에서 고른 쪽 요약: "3–4쪽" 또는 "콘티 3–4쪽 + 드럼 1쪽"
+function sheetLabel(items, withName) {
+  const g = [];
+  items.forEach(it => { const last = g[g.length - 1]; if (last && last.key === it.key) last.pages.push(it.page); else g.push({key:it.key, pages:[it.page]}); });
+  const one = new Set(items.map(it => it.key)).size === 1;
+  return g.map(x => { const pl = x.pages.includes(0) ? '전체 쪽' : pagesLabel(x.pages), L = libOf(x.key); return one && !withName ? pl : `${L ? L.name : '악보'} ${pl}`; }).join(' + ');
+}
+const meta = s => [s.sheet ? '𝄞 ' + sheetLabel(s.sheet.items) : '', sigL(s), SUBL[s.sub], s.countIn ? `카운트 ${s.countIn}마디` : '', s.memo].filter(Boolean).join(' · ');
 
 /* ================= 공통 UI ================= */
 let toastT;
@@ -662,7 +680,7 @@ function loadPdfJs() {
 const SV = {sig:null, doc:null, list:[], fit:'page', tok:0, per:1};
 SV.fit = 'page';
 try { if (localStorage.getItem('countin.fit') === 'width') SV.fit = 'width'; } catch (e) {}
-const sheetSig = s => s.sheet.key + '|' + (s.sheet.pages ? s.sheet.pages.join(',') : 'all');
+const sheetSig = s => JSON.stringify(s.sheet.items);
 async function showSheet() {
   const s = song(), pages = $('#pages');
   if (!s || !s.sheet) return;
@@ -670,18 +688,23 @@ async function showSheet() {
   if (SV.sig !== sig || !SV.doc) {
     SV.doc = null; SV.sig = null; SV.tok++;
     pages.innerHTML = '<p class="sheetmsg">악보 여는 중…</p>';
-    try {
-      const doc = await getDoc(s.sheet.key);
-      if (!song() || !song().sheet || sheetSig(song()) !== sig) return;
-      SV.doc = doc; SV.sig = sig;
-      const all = Array.from({length:doc.numPages}, (_, i) => i + 1);
-      SV.list = s.sheet.pages ? s.sheet.pages.filter(n => n <= doc.numPages) : all;
-      if (!SV.list.length) SV.list = all;
-    } catch (e) {
-      pages.innerHTML = `<p class="sheetmsg">${e.message === 'missing' ? '이 기기에 악보 파일이 없어요.<br>설정 → 악보함에서 PDF를 다시 넣고 쪽을 골라 주세요.' : '악보를 열지 못했어요.<br>PDF 파일이 맞는지 확인해 주세요.'}</p>`;
+    const list = [];
+    let missing = 0;
+    for (const it of s.sheet.items) {
+      try {
+        const doc = await getDoc(it.key);
+        if (it.page) { if (it.page <= doc.numPages) list.push({doc, p:it.page}); }
+        else for (let p = 1; p <= doc.numPages; p++) list.push({doc, p});
+      } catch (e) { missing++; }
+    }
+    if (!song() || !song().sheet || sheetSig(song()) !== sig) return;
+    if (!list.length) {
+      pages.innerHTML = `<p class="sheetmsg">${missing ? '이 기기에 악보 파일이 없어요.<br>프로젝트 관리에서 PDF를 다시 넣고 쪽을 골라 주세요.' : '악보를 열지 못했어요.<br>PDF 파일이 맞는지 확인해 주세요.'}</p>`;
       updPg(); return;
     }
-    $('#sheetBox').scrollTop = 0;
+    if (missing) toast('일부 악보 파일이 이 기기에 없어서 빼고 보여줘요');
+    SV.doc = true; SV.sig = sig; SV.list = list;
+    $('#sheetBox').scrollTop = 0; $('#sheetBox').scrollLeft = 0;
   }
   await renderPages();
 }
@@ -700,7 +723,7 @@ async function renderPages() {
   const pw = W / SV.per;
   const frag = [];
   for (let idx = 0; idx < SV.list.length; idx++) {
-    const i = idx + 1, pg = await SV.doc.getPage(SV.list[idx]);
+    const i = idx + 1, pg = await SV.list[idx].doc.getPage(SV.list[idx].p);
     if (tok !== SV.tok) return;
     const v1 = pg.getViewport({scale:1});
     const sc = horiz ? Math.min(pw / v1.width, Hh / v1.height) : W / v1.width;
@@ -868,11 +891,11 @@ const reorder = (arr, order) => order.map(i => arr[i]);
 function renderHome() {
   const ul = $('#projList');
   ul.innerHTML = D.setlists.map((p, i) => {
-    const n = p.songs.length, sh = p.songs.filter(s => s.sheet).length;
+    const n = p.songs.length, sh = p.pdfs.length;
     const bpms = p.songs.slice(0, 6).map(s => s.bpm).join(' · ') + (n > 6 ? ' …' : '');
     return `<li data-i="${i}">
       <button class="pcard" data-act="open"><span class="pn">${esc(p.name)}</span>
-        <span class="pm">${n ? n + '곡' : '곡 없음'}${sh ? ` · 𝄞 악보 ${sh}` : ''}</span>
+        <span class="pm">${n ? n + '곡' : '곡 없음'}${sh ? ` · 𝄞 PDF ${sh}개` : ''}</span>
         ${n ? `<span class="bpms num">${bpms}<small>BPM</small></span>` : ''}</button>
       <div class="pact"><button class="pplay" data-act="go" aria-label="${esc(p.name)} 1번부터 시작" ${n ? '' : 'disabled'}>▶</button><button class="more" data-act="menu" aria-label="${esc(p.name)} 관리">⋯</button></div>
     </li>`;
@@ -1112,6 +1135,19 @@ window.addEventListener('popstate', () => {
   }
   if (!$('#scrList').hidden) goHome();
 });
+// 안드로이드 앱(뒤로 버튼): 시트 닫기 → 재생 → 프로젝트 → 홈 순으로 한 단계씩, 홈에선 두 번 눌러야 종료
+(() => {
+  const CapApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!CapApp) return;
+  let exitArm = 0;
+  CapApp.addListener('backButton', () => {
+    if (!$('#scrHome').hidden && $('#shw').hidden) {
+      if (performance.now() - exitArm < 2000) { CapApp.exitApp(); return; }
+      exitArm = performance.now(); toast('한 번 더 누르면 종료돼요'); return;
+    }
+    history.back();
+  });
+})();
 const sheet = $('#sheet');
 const seg = (k, label, opts, cur) => `<div class="fld"><span>${label}</span><div class="seg" data-k="${k}">${opts.map(([v, l]) => `<button type="button" data-act="seg" data-v="${v}" aria-pressed="${String(v) === String(cur)}">${l}</button>`).join('')}</div></div>`;
 const tgl = (k, label, on, sub = '') => `<button type="button" class="tg" data-act="tgl" data-k="${k}" role="switch" aria-checked="${!!on}"><span>${label}${sub ? `<small>${sub}</small>` : ''}</span><span class="sw"></span></button>`;
@@ -1159,9 +1195,9 @@ function renderEditor() {
     ${tgl('accent', '첫 박 강조', d.accent)}
     ${seg('visual', '이 곡 비주얼', [['', '기본'], ...VIS], d.visual || '')}
     <label class="fld"><span>메모 (재생 화면에 표시)</span><input id="fMemo" type="text" value="${esc(d.memo)}" placeholder="예: 브릿지 하프타임" maxlength="40" autocomplete="off"></label>
-    ${(() => { const sh = d.sheet, L = sh && D.library.find(x => x.key === sh.key);
-      const txt = sh ? `𝄞 ${esc(L ? L.name : '악보')} · ${pagesLabel(sh.pages)}` : '없음';
-      return `<div class="fld"><span>악보 (악보함 PDF에서 쪽 고르기)</span><div class="row2">
+    ${(() => { const sh = d.sheet;
+      const txt = sh ? `𝄞 ${esc(sheetLabel(sh.items, true))}` : '없음';
+      return `<div class="fld"><span>악보 (이 프로젝트 PDF에서 쪽 고르기)</span><div class="row2">
         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${sh ? 'var(--text)' : 'var(--mute)'}">${txt}</span>
         <button type="button" class="pill" style="flex:0 0 auto" data-act="pickPages">${sh ? '쪽 바꾸기' : '쪽 고르기'}</button>
         ${sh ? '<button type="button" class="pill danger" style="flex:0 0 auto" data-act="rmSheet">빼기</button>' : ''}</div></div>`; })()}
@@ -1195,42 +1231,55 @@ H.tap = () => {
 H.rmSheet = () => { syncDraft(); draft.sheet = null; const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st; };
 
 /* ---------- 쪽 고르기 (곡 편집 안의 두 번째 화면) ---------- */
-const PK = {key:null, sel:[], n:0, tok:0};
+// PK.sel = [{key, page}] — 여러 PDF를 오가며 누른 순서대로
+const PK = {key:null, sel:[], n:0, tok:0, imp:false};
+const projPdfs = () => { const p = curSL(); return p ? p.pdfs.filter(k => libOf(k)) : []; };
+function attachPdf(key) { const p = curSL(); if (p && !p.pdfs.includes(key)) { p.pdfs.push(key); save(); } }
 H.pickPages = () => {
   syncDraft();
-  const sh = draft.sheet;
-  PK.key = sh ? sh.key : (D.library.length ? D.library[D.library.length - 1].key : null);
-  PK.sel = sh && sh.pages ? [...sh.pages] : [];
-  PK.all = !!(sh && !sh.pages);
+  const sh = draft.sheet, pdfs = projPdfs();
+  PK.sel = sh ? sh.items.map(it => ({...it})) : [];
+  PK.key = sh && pdfs.includes(sh.items[0].key) ? sh.items[0].key : (pdfs[pdfs.length - 1] || null);
+  PK.imp = !pdfs.length && D.library.length > 0;
   edScroll = sheet.scrollTop;
   renderPicker();
-  if (!D.library.length) pickPdfFile(e => { PK.key = e.key; PK.sel = []; PK.all = false; if (sheetKind === 'editor') renderPicker(); });
+  if (!pdfs.length && !D.library.length) H.pkAdd();
 };
 let edScroll = 0;
 function backToForm() { renderEditor(); sheet.scrollTop = edScroll; }
-// 같은 셋리스트에서 이 PDF의 각 쪽을 쓰는 다른 곡 번호
+// 같은 프로젝트에서 이 PDF의 각 쪽을 쓰는 다른 곡 번호
 function usedBy(key) {
   const m = {};
   curSL().songs.forEach((s, j) => {
-    if (j === draftIdx || !s.sheet || s.sheet.key !== key) return;
-    (s.sheet.pages || Array.from({length:PK.n}, (_, i) => i + 1)).forEach(p => (m[p] = m[p] || []).push(j + 1));
+    if (j === draftIdx || !s.sheet) return;
+    s.sheet.items.forEach(it => {
+      if (it.key !== key) return;
+      (it.page ? [it.page] : Array.from({length:PK.n}, (_, i) => i + 1)).forEach(p => { (m[p] = m[p] || []); if (!m[p].includes(j + 1)) m[p].push(j + 1); });
+    });
   });
   return m;
 }
+const selCount = sel => sel.reduce((a, it) => a + (it.page ? 1 : ((libOf(it.key) || {}).pages || 1)), 0);
 function renderPicker() {
-  const lib = D.library;
+  const pdfs = projPdfs(), others = D.library.filter(x => !pdfs.includes(x.key));
+  const nSel = k => PK.sel.filter(it => it.key === k).length;
   sheet.innerHTML = `<div class="grab"></div>
   <div class="sh-head"><button class="txtbtn" data-act="pkBack">‹ 뒤로</button><h2>악보 쪽 고르기</h2><button class="txtbtn strong" data-act="pkDone">완료</button></div>
   <div class="sh-body">
-    ${lib.length ? `<div class="fld"><span>PDF</span><select id="pkPdf" class="inp">${lib.map(x => `<option value="${esc(x.key)}" ${x.key === PK.key ? 'selected' : ''}>${esc(x.name)}${x.pages ? ` (${x.pages}쪽)` : ''}</option>`).join('')}</select></div>` : ''}
-    <button type="button" class="pill" data-act="pkAdd" style="align-self:flex-start">＋ 새 PDF 넣기</button>
-    ${lib.length ? `<p class="note" id="pkInfo">불러오는 중…</p><div class="thumbs" id="thumbs"></div>
-      <div class="sh-actions"><button type="button" data-act="pkNone">선택 해제</button><button type="button" data-act="pkAll">전부 선택</button></div>`
-      : `<p class="note">콘티나 악보집 PDF를 한 번 넣어 두면, 곡마다 필요한 쪽만 골라 쓸 수 있어요.</p>`}
+    ${pdfs.length ? `<div class="fld"><span>이 프로젝트의 PDF (${pdfs.length}개)</span><select id="pkPdf" class="inp">${pdfs.map(k => { const x = libOf(k); return `<option value="${esc(k)}" ${k === PK.key ? 'selected' : ''}>${esc(x.name)}${x.pages ? ` (${x.pages}쪽)` : ''}${nSel(k) ? ` · ${nSel(k)}개 고름` : ''}</option>`; }).join('')}</select></div>` : ''}
+    <div class="row2" style="flex-wrap:wrap">
+      <button type="button" class="pill" style="flex:0 0 auto" data-act="pkAdd">＋ 새 PDF 넣기</button>
+      ${others.length ? `<button type="button" class="pill" style="flex:0 0 auto" data-act="pkImp" aria-pressed="${PK.imp}">다른 프로젝트 악보 가져오기</button>` : ''}
+    </div>
+    ${PK.imp && others.length ? `<div class="slrows">${others.map(x => `<button type="button" class="slrow" data-act="pkImpOne" data-k="${esc(x.key)}"><span>𝄞 ${esc(x.name)}</span><span>${x.pages ? x.pages + '쪽 · ' : ''}가져오기</span></button>`).join('')}</div>` : ''}
+    ${pdfs.length ? `<p class="note" id="pkInfo">불러오는 중…</p><div class="thumbs" id="thumbs"></div>
+      <div class="sh-actions"><button type="button" data-act="pkNone">이 PDF 선택 해제</button><button type="button" data-act="pkAll">이 PDF 전부</button></div>
+      ${PK.sel.length ? '<button type="button" class="pill danger" data-act="pkClear" style="align-self:flex-start">고른 쪽 모두 해제</button>' : ''}`
+      : `<p class="note">이 프로젝트에 넣은 PDF가 없어요. 콘티나 악보집 PDF를 넣으면 곡마다 필요한 쪽만 골라 쓸 수 있어요. 여러 PDF에서 섞어 골라도 돼요.</p>`}
   </div>`;
   const selEl = $('#pkPdf');
-  if (selEl) selEl.onchange = () => { PK.key = selEl.value; PK.sel = []; PK.all = false; renderPicker(); };
-  if (lib.length && PK.key) renderThumbs();
+  if (selEl) selEl.onchange = () => { PK.key = selEl.value; renderPicker(); };
+  if (pdfs.length && PK.key) renderThumbs();
 }
 async function renderThumbs() {
   const tok = ++PK.tok, box = $('#thumbs');
@@ -1239,8 +1288,11 @@ async function renderThumbs() {
   catch (e) { if (tok === PK.tok && $('#pkInfo')) $('#pkInfo').textContent = e.message === 'missing' ? '이 기기에 이 PDF 파일이 없어요. 새로 넣어 주세요.' : 'PDF를 열지 못했어요.'; return; }
   if (tok !== PK.tok || !box.isConnected) return;
   PK.n = doc.numPages;
-  if (PK.all) { PK.sel = Array.from({length:PK.n}, (_, i) => i + 1); PK.all = false; }
-  PK.sel = PK.sel.filter(p => p <= PK.n);
+  // "전체 쪽"(page 0)은 낱장으로 펼쳐서 하나씩 뺄 수 있게
+  const k0 = PK.sel.findIndex(it => it.key === PK.key && !it.page);
+  if (k0 >= 0) PK.sel.splice(k0, 1, ...Array.from({length:PK.n}, (_, i) => ({key:PK.key, page:i + 1})));
+  const seen = new Set();
+  PK.sel = PK.sel.filter(it => { if (it.key !== PK.key) return true; if (it.page > PK.n || seen.has(it.page)) return false; seen.add(it.page); return true; });
   const used = usedBy(PK.key);
   box.innerHTML = Array.from({length:PK.n}, (_, i) => `<button type="button" class="thumb" data-act="pkTog" data-p="${i + 1}" aria-label="${i + 1}쪽">
     <canvas></canvas><span class="pn num">${i + 1}</span><span class="ord num"></span>${used[i + 1] ? `<span class="usedby">${used[i + 1].join('·')}번 곡</span>` : ''}</button>`).join('');
@@ -1255,24 +1307,29 @@ async function renderThumbs() {
     } catch (e) {}
   }
 }
+const pkIdx = p => PK.sel.findIndex(it => it.key === PK.key && it.page === p);
 function updPick() {
   const box = $('#thumbs'); if (!box) return;
   box.querySelectorAll('.thumb').forEach(t => {
-    const o = PK.sel.indexOf(+t.dataset.p);
+    const o = pkIdx(+t.dataset.p);
     t.classList.toggle('on', o >= 0); t.setAttribute('aria-pressed', o >= 0);
     t.querySelector('.ord').textContent = o >= 0 ? o + 1 : '';
   });
-  $('#pkInfo').textContent = PK.sel.length ? `${PK.sel.length}쪽 골랐어요 · ${pagesLabel(PK.sel)} · 누른 순서대로 보여요` : '이 곡에 쓸 쪽을 순서대로 눌러 주세요';
+  $('#pkInfo').textContent = PK.sel.length ? `${selCount(PK.sel)}쪽 골랐어요 · ${sheetLabel(PK.sel, new Set(PK.sel.map(i => i.key)).size > 1)} · 누른 순서대로 보여요` : '이 곡에 쓸 쪽을 순서대로 눌러 주세요 · 위에서 PDF를 바꿔 가며 섞어 골라도 돼요';
+  const selEl = $('#pkPdf');
+  if (selEl) [...selEl.options].forEach(o => { const x = libOf(o.value), n = PK.sel.filter(it => it.key === o.value).length; o.textContent = `${x.name}${x.pages ? ` (${x.pages}쪽)` : ''}${n ? ` · ${n}개 고름` : ''}`; });
 }
-H.pkTog = b => { const p = +b.dataset.p, o = PK.sel.indexOf(p); if (o >= 0) PK.sel.splice(o, 1); else PK.sel.push(p); updPick(); };
-H.pkAll = () => { PK.sel = Array.from({length:PK.n}, (_, i) => i + 1); updPick(); };
-H.pkNone = () => { PK.sel = []; updPick(); };
-H.pkAdd = () => pickPdfFile(e => { PK.key = e.key; PK.sel = []; PK.all = false; if (sheetKind === 'editor') renderPicker(); });
+H.pkTog = b => { const p = +b.dataset.p, o = pkIdx(p); if (o >= 0) PK.sel.splice(o, 1); else PK.sel.push({key:PK.key, page:p}); updPick(); };
+H.pkAll = () => { for (let p = 1; p <= PK.n; p++) if (pkIdx(p) < 0) PK.sel.push({key:PK.key, page:p}); updPick(); };
+H.pkNone = () => { PK.sel = PK.sel.filter(it => it.key !== PK.key); updPick(); };
+H.pkClear = () => { PK.sel = []; renderPicker(); };
+H.pkAdd = () => pickPdfFile(e => { attachPdf(e.key); PK.key = e.key; PK.imp = false; if (sheetKind === 'editor') renderPicker(); });
+H.pkImp = () => { PK.imp = !PK.imp; renderPicker(); };
+H.pkImpOne = b => { attachPdf(b.dataset.k); PK.key = b.dataset.k; PK.imp = false; renderPicker(); toast(`"${libOf(b.dataset.k).name}"을(를) 이 프로젝트에 넣었어요`); };
 H.pkBack = () => { PK.tok++; backToForm(); };
 H.pkDone = () => {
   PK.tok++;
-  if (PK.key && PK.sel.length) draft.sheet = {key:PK.key, pages:PK.sel.length === PK.n && PK.sel.every((p, i) => p === i + 1) ? null : [...PK.sel]};
-  else draft.sheet = null;
+  draft.sheet = PK.sel.length ? {items:PK.sel.map(it => ({...it}))} : null;
   backToForm();
 };
 
@@ -1289,7 +1346,7 @@ H.saveSong = () => {
   toast('저장했어요');
 };
 H.dupSong = () => {
-  const songs = curSL().songs, c = newSong({...songs[draftIdx], id:uid(), title:(songs[draftIdx].title || '제목 없음') + ' 복사'});
+  const songs = curSL().songs, c = newSong({...songs[draftIdx], id:uid(), title:(songs[draftIdx].title || '제목 없음') + ' 복사', sheet:songs[draftIdx].sheet ? {items:songs[draftIdx].sheet.items.map(it => ({...it}))} : null});
   songs.splice(draftIdx + 1, 0, c); save(); closeSheet(); renderList(); if (!$('#scrPlay').hidden) renderPlay(); toast('복제했어요');
 };
 H.delSong = () => {
@@ -1300,7 +1357,7 @@ H.delSong = () => {
 };
 
 /* ---------- 프로젝트 만들기·관리 ---------- */
-let pmId = null, pmDelArm = false;
+let pmId = null, pmDelArm = false, pmPdfArm = null, pmImp = false;
 function openNewProj() {
   sheet.innerHTML = `<div class="grab"></div>
   <div class="sh-head"><button class="txtbtn" data-act="close">취소</button><h2>새 프로젝트</h2><button class="txtbtn strong" data-act="mkProj">만들기</button></div>
@@ -1314,11 +1371,11 @@ function openNewProj() {
 }
 H.mkProj = () => {
   const n = ($('#npName').value || '').trim() || '새 프로젝트';
-  const x = {id:uid(), name:n, songs:[]}; D.setlists.push(x); save();
+  const x = {id:uid(), name:n, pdfs:[], songs:[]}; D.setlists.push(x); save();
   closeSheet(); renderHome();
   setTimeout(() => { openProject(x.id); toast(`"${n}" 만들었어요 · ＋로 곡을 넣으세요`); }, 60);
 };
-function openProjMenu(id) { pmId = id; pmDelArm = false; renderProjMenu(); openSheet('projmenu'); }
+function openProjMenu(id) { pmId = id; pmDelArm = false; pmPdfArm = null; pmImp = false; renderProjMenu(); openSheet('projmenu'); }
 function renderProjMenu() {
   const p = D.setlists.find(x => x.id === pmId); if (!p) return;
   sheet.innerHTML = `<div class="grab"></div>
@@ -1326,14 +1383,37 @@ function renderProjMenu() {
   <div class="sh-body">
     <div class="fld"><span>이름</span><div class="row2"><input id="pmName" class="inp" type="text" value="${esc(p.name)}" maxlength="40" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="pmRen">변경</button></div></div>
     <p class="note">${p.songs.length}곡${p.songs.length ? ' · ' + p.songs.map(s => s.bpm).join(' → ') + ' BPM' : ''}</p>
+    <div class="sec-t">이 프로젝트 악보 (PDF ${p.pdfs.length}개)</div>
+    ${p.pdfs.length ? `<div class="slrows">${p.pdfs.map(k => { const x = libOf(k); if (!x) return ''; const n = p.songs.filter(s => usesKey(s, k)).length;
+      return `<div class="librow"><span class="nm"><b>𝄞 ${esc(x.name)}</b><small>${x.pages ? x.pages + '쪽' : '쪽 수 확인 전'} · ${n ? n + '곡에서 사용' : '쓰는 곡 없음'}</small></span>
+        <button type="button" data-act="pmPdfOut" data-k="${esc(k)}">${pmPdfArm === k ? (n ? `${n}곡 악보에서도 빠져요 · 빼기` : '한 번 더 누르면 빼기') : '빼기'}</button></div>`; }).join('')}</div>`
+      : '<p class="note">예배 콘티, 드럼 악보처럼 이 프로젝트에서 쓸 PDF를 여러 개 넣어 두고, 곡마다 쪽을 골라 쓰세요.</p>'}
+    <div class="row2" style="flex-wrap:wrap">
+      <button type="button" class="pill" style="flex:0 0 auto" data-act="pmPdfAdd">＋ PDF 넣기</button>
+      ${D.library.some(x => !p.pdfs.includes(x.key)) ? `<button type="button" class="pill" style="flex:0 0 auto" data-act="pmImp" aria-pressed="${pmImp}">다른 프로젝트 악보 가져오기</button>` : ''}
+    </div>
+    ${pmImp ? `<div class="slrows">${D.library.filter(x => !p.pdfs.includes(x.key)).map(x => `<button type="button" class="slrow" data-act="pmImpOne" data-k="${esc(x.key)}"><span>𝄞 ${esc(x.name)}</span><span>${x.pages ? x.pages + '쪽 · ' : ''}가져오기</span></button>`).join('')}</div>` : ''}
     <div class="sh-actions"><button type="button" data-act="pmDup">복제</button><button type="button" class="danger" data-act="pmDel">${pmDelArm ? (p.songs.length ? `${p.songs.length}곡도 지워져요 · 삭제` : '한 번 더 누르면 삭제') : '삭제'}</button></div>
   </div>`;
 }
 const refreshLists = () => { renderHome(); if (!$('#scrList').hidden) renderList(); };
+const pmProj = () => D.setlists.find(x => x.id === pmId);
+const rerenderPM = () => { const st = sheet.scrollTop; renderProjMenu(); sheet.scrollTop = st; };
+H.pmPdfAdd = () => pickPdfFile(e => { const p = pmProj(); if (p && !p.pdfs.includes(e.key)) p.pdfs.push(e.key); save(); refreshLists(); if (sheetKind === 'projmenu') rerenderPM(); });
+H.pmImp = () => { pmImp = !pmImp; rerenderPM(); };
+H.pmImpOne = b => { const p = pmProj(); if (!p.pdfs.includes(b.dataset.k)) p.pdfs.push(b.dataset.k); pmImp = false; save(); refreshLists(); rerenderPM(); toast(`"${libOf(b.dataset.k).name}"을(를) 가져왔어요`); };
+// 프로젝트에서 빼기: 파일은 악보함에 남고, 이 프로젝트 곡들에서만 그 PDF 쪽이 빠짐
+H.pmPdfOut = b => {
+  const k = b.dataset.k, p = pmProj();
+  if (pmPdfArm !== k) { pmPdfArm = k; rerenderPM(); return; }
+  pmPdfArm = null; p.pdfs = p.pdfs.filter(x => x !== k); p.songs.forEach(s => dropKey(s, k));
+  save(); refreshLists(); rerenderPM(); toast('이 프로젝트에서 뺐어요 (설정 → 악보함엔 남아 있어요)');
+  if (!$('#scrPlay').hidden) renderPlay();
+};
 H.pmRen = () => { const n = $('#pmName').value.trim(); if (!n) return; D.setlists.find(x => x.id === pmId).name = n; save(); refreshLists(); renderProjMenu(); toast('이름을 바꿨어요'); };
 H.pmDup = () => {
   const i = D.setlists.findIndex(x => x.id === pmId), c = D.setlists[i];
-  D.setlists.splice(i + 1, 0, {id:uid(), name:c.name + ' 복사', songs:c.songs.map(s => ({...s, id:uid()}))});
+  D.setlists.splice(i + 1, 0, {id:uid(), name:c.name + ' 복사', pdfs:[...c.pdfs], songs:c.songs.map(s => ({...s, id:uid(), sheet:s.sheet ? {items:s.sheet.items.map(it => ({...it}))} : null}))});
   save(); refreshLists(); closeSheet(); toast('복제했어요');
 };
 H.pmDel = () => {
@@ -1355,7 +1435,7 @@ H.libDel = b => {
   if (libDelArm !== k) { libDelArm = k; rerenderSettings(); return; }
   libDelArm = null;
   D.library = D.library.filter(x => x.key !== k);
-  D.setlists.forEach(sl => sl.songs.forEach(s => { if (s.sheet && s.sheet.key === k) s.sheet = null; }));
+  D.setlists.forEach(sl => { sl.pdfs = sl.pdfs.filter(x => x !== k); sl.songs.forEach(s => dropKey(s, k)); });
   DOCS.delete(k); save(); gcSheets(); renderList(); rerenderSettings();
   if (!$('#scrPlay').hidden) renderPlay();
   toast('악보함에서 지웠어요');
@@ -1378,10 +1458,10 @@ function renderSettings() {
     ${tgl('wake', '재생 화면에서 화면 꺼짐 방지', S.wake)}
     ${tgl('nextAuto', '재생 중 다음 곡으로 넘기면 바로 시작', S.nextAuto, '끄면 넘긴 뒤 정지 상태로 기다려요')}
     <div class="sec-t">악보함 (PDF)</div>
-    ${D.library.length ? `<div class="slrows">${D.library.map(x => { const n = D.setlists.reduce((a, sl) => a + sl.songs.filter(s => s.sheet && s.sheet.key === x.key).length, 0);
+    ${D.library.length ? `<div class="slrows">${D.library.map(x => { const n = D.setlists.reduce((a, sl) => a + sl.songs.filter(s => usesKey(s, x.key)).length, 0);
       return `<div class="librow"><span class="nm"><b>𝄞 ${esc(x.name)}</b><small>${x.pages ? x.pages + '쪽' : '쪽 수 확인 전'} · ${n ? n + '곡에서 사용' : '쓰는 곡 없음'}</small></span>
         <button type="button" class="danger" data-act="libDel" data-k="${esc(x.key)}">${libDelArm === x.key ? (n ? `${n}곡 악보도 빠져요 · 삭제` : '한 번 더 누르면 삭제') : '삭제'}</button></div>`; }).join('')}</div>`
-      : '<p class="note">아직 넣은 PDF가 없어요. 콘티·악보집 PDF를 넣고, 곡 편집에서 쪽을 골라 쓰세요.</p>'}
+      : '<p class="note">아직 넣은 PDF가 없어요. 프로젝트 관리(⋯)에서 프로젝트마다 PDF를 넣고, 곡 편집에서 쪽을 골라 쓰세요.</p>'}
     <button type="button" class="pill" data-act="libAdd" style="align-self:flex-start">＋ PDF 넣기</button>
     <div class="sec-t">백업</div>
     <div class="sh-actions" style="padding-top:0"><button type="button" data-act="exportD">내보내기</button><button type="button" data-act="importD">불러오기</button></div>
@@ -1389,7 +1469,7 @@ function renderSettings() {
     <div class="sec-t">조작</div>
     <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전. 악보 화면에선 페달이 악보를 넘기고, 마지막에서 한 번 더 누르면 다음 곡.</p>
     <p class="note">분할 화면이나 작은 창으로 띄우면 버튼만 남은 작은 배치로 바뀌어요.</p>
-    <p class="note" style="color:var(--dim)">카운트인 v1.5 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v1.6 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
