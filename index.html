@@ -1750,7 +1750,7 @@ function renderSettings() {
     <p class="note">불러온 셋리스트는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v2.1 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v2.2 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
