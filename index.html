@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,interactive-widget=resizes-content">
 <meta name="theme-color" content="#0F1217">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -217,7 +217,7 @@ li.dragging{position:relative;z-index:5;box-shadow:0 14px 34px rgba(0,0,0,.55);o
 @media (max-height:300px){ .ph{display:none} }
 
 /* ---------- 시트 ---------- */
-.shw{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.shw{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20;padding-bottom:var(--kb,0px);transition:padding-bottom .15s}
 .sheet{width:100%;max-width:560px;max-height:calc(100% - var(--st) - 16px);overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border-radius:22px 22px 0 0;
   padding:8px max(16px,var(--sl)) calc(20px + var(--sb)) max(16px,var(--sr));animation:up .22s ease-out}
 @keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
@@ -429,6 +429,18 @@ function pagesLabel(p) {
   return out.join(', ') + '쪽';
 }
 const libOf = k => D.library.find(x => x.key === k);
+const projsWith = k => D.setlists.filter(p => p.pdfs.includes(k));
+const orphanPdfs = () => D.library.filter(x => !projsWith(x.key).length);
+// 어느 프로젝트에도 없는 PDF 파일 지우기. 지운 개수를 돌려줌
+function dropFiles(keys) {
+  if (!keys.length) return 0;
+  D.library = D.library.filter(x => !keys.includes(x.key));
+  D.setlists.forEach(p => { p.pdfs = p.pdfs.filter(k => !keys.includes(k)); p.songs.forEach(s => keys.forEach(k => dropKey(s, k))); });
+  keys.forEach(k => DOCS.delete(k));
+  save(); gcSheets();
+  return keys.length;
+}
+const pruneLibrary = () => dropFiles(orphanPdfs().map(x => x.key));
 const usesKey = (s, k) => !!(s.sheet && s.sheet.items.some(it => it.key === k));
 function dropKey(s, k) { if (!s.sheet) return; s.sheet.items = s.sheet.items.filter(it => it.key !== k); if (!s.sheet.items.length) s.sheet = null; }
 // 여러 PDF에서 고른 쪽 요약: "3–4쪽" 또는 "콘티 3–4쪽 + 드럼 1쪽"
@@ -1271,7 +1283,7 @@ function renderPicker() {
       <button type="button" class="pill" style="flex:0 0 auto" data-act="pkAdd">＋ 새 PDF 넣기</button>
       ${others.length ? `<button type="button" class="pill" style="flex:0 0 auto" data-act="pkImp" aria-pressed="${PK.imp}">다른 프로젝트 악보 가져오기</button>` : ''}
     </div>
-    ${PK.imp && others.length ? `<div class="slrows">${others.map(x => `<button type="button" class="slrow" data-act="pkImpOne" data-k="${esc(x.key)}"><span>𝄞 ${esc(x.name)}</span><span>${x.pages ? x.pages + '쪽 · ' : ''}가져오기</span></button>`).join('')}</div>` : ''}
+    ${PK.imp && others.length ? `<div class="slrows">${others.map(x => `<button type="button" class="slrow" data-act="pkImpOne" data-k="${esc(x.key)}"><span>𝄞 ${esc(x.name)}<small style="display:block;color:var(--mute);font-size:12px">${esc(projsWith(x.key).map(p => p.name).join(', ') || '프로젝트 없음')}</small></span><span>${x.pages ? x.pages + '쪽 · ' : ''}가져오기</span></button>`).join('')}</div>` : ''}
     ${pdfs.length ? `<p class="note" id="pkInfo">불러오는 중…</p><div class="thumbs" id="thumbs"></div>
       <div class="sh-actions"><button type="button" data-act="pkNone">이 PDF 선택 해제</button><button type="button" data-act="pkAll">이 PDF 전부</button></div>
       ${PK.sel.length ? '<button type="button" class="pill danger" data-act="pkClear" style="align-self:flex-start">고른 쪽 모두 해제</button>' : ''}`
@@ -1386,14 +1398,14 @@ function renderProjMenu() {
     <div class="sec-t">이 프로젝트 악보 (PDF ${p.pdfs.length}개)</div>
     ${p.pdfs.length ? `<div class="slrows">${p.pdfs.map(k => { const x = libOf(k); if (!x) return ''; const n = p.songs.filter(s => usesKey(s, k)).length;
       return `<div class="librow"><span class="nm"><b>𝄞 ${esc(x.name)}</b><small>${x.pages ? x.pages + '쪽' : '쪽 수 확인 전'} · ${n ? n + '곡에서 사용' : '쓰는 곡 없음'}</small></span>
-        <button type="button" data-act="pmPdfOut" data-k="${esc(k)}">${pmPdfArm === k ? (n ? `${n}곡 악보에서도 빠져요 · 빼기` : '한 번 더 누르면 빼기') : '빼기'}</button></div>`; }).join('')}</div>`
+        <button type="button" class="danger" data-act="pmPdfOut" data-k="${esc(k)}">${pmPdfArm === k ? [n ? `${n}곡에서 빠져요` : '', projsWith(k).length > 1 ? '빼기' : '파일 삭제'].filter(Boolean).join(' · ') : (projsWith(k).length > 1 ? '빼기' : '삭제')}</button></div>`; }).join('')}</div>`
       : '<p class="note">예배 콘티, 드럼 악보처럼 이 프로젝트에서 쓸 PDF를 여러 개 넣어 두고, 곡마다 쪽을 골라 쓰세요.</p>'}
     <div class="row2" style="flex-wrap:wrap">
       <button type="button" class="pill" style="flex:0 0 auto" data-act="pmPdfAdd">＋ PDF 넣기</button>
       ${D.library.some(x => !p.pdfs.includes(x.key)) ? `<button type="button" class="pill" style="flex:0 0 auto" data-act="pmImp" aria-pressed="${pmImp}">다른 프로젝트 악보 가져오기</button>` : ''}
     </div>
-    ${pmImp ? `<div class="slrows">${D.library.filter(x => !p.pdfs.includes(x.key)).map(x => `<button type="button" class="slrow" data-act="pmImpOne" data-k="${esc(x.key)}"><span>𝄞 ${esc(x.name)}</span><span>${x.pages ? x.pages + '쪽 · ' : ''}가져오기</span></button>`).join('')}</div>` : ''}
-    <div class="sh-actions"><button type="button" data-act="pmDup">복제</button><button type="button" class="danger" data-act="pmDel">${pmDelArm ? (p.songs.length ? `${p.songs.length}곡도 지워져요 · 삭제` : '한 번 더 누르면 삭제') : '삭제'}</button></div>
+    ${pmImp ? `<div class="slrows">${D.library.filter(x => !p.pdfs.includes(x.key)).map(x => `<button type="button" class="slrow" data-act="pmImpOne" data-k="${esc(x.key)}"><span>𝄞 ${esc(x.name)}<small style="display:block;color:var(--mute);font-size:12px">${esc(projsWith(x.key).map(q => q.name).join(', ') || '프로젝트 없음')}</small></span><span>${x.pages ? x.pages + '쪽 · ' : ''}가져오기</span></button>`).join('')}</div>` : ''}
+    <div class="sh-actions"><button type="button" data-act="pmDup">복제</button><button type="button" class="danger" data-act="pmDel">${pmDelArm ? ([p.songs.length ? `${p.songs.length}곡` : '', p.pdfs.filter(k => projsWith(k).length === 1).length ? `PDF ${p.pdfs.filter(k => projsWith(k).length === 1).length}개` : ''].filter(Boolean).join('·') || '프로젝트') + '도 지워져요 · 삭제' : '삭제'}</button></div>
   </div>`;
 }
 const refreshLists = () => { renderHome(); if (!$('#scrList').hidden) renderList(); };
@@ -1407,7 +1419,9 @@ H.pmPdfOut = b => {
   const k = b.dataset.k, p = pmProj();
   if (pmPdfArm !== k) { pmPdfArm = k; rerenderPM(); return; }
   pmPdfArm = null; p.pdfs = p.pdfs.filter(x => x !== k); p.songs.forEach(s => dropKey(s, k));
-  save(); refreshLists(); rerenderPM(); toast('이 프로젝트에서 뺐어요 (설정 → 악보함엔 남아 있어요)');
+  const shared = projsWith(k).length > 0;
+  save(); if (!shared) dropFiles([k]);
+  refreshLists(); rerenderPM(); toast(shared ? '이 프로젝트에서 뺐어요 (다른 프로젝트엔 그대로)' : 'PDF를 지웠어요');
   if (!$('#scrPlay').hidden) renderPlay();
 };
 H.pmRen = () => { const n = $('#pmName').value.trim(); if (!n) return; D.setlists.find(x => x.id === pmId).name = n; save(); refreshLists(); renderProjMenu(); toast('이름을 바꿨어요'); };
@@ -1419,9 +1433,13 @@ H.pmDup = () => {
 H.pmDel = () => {
   if (!pmDelArm) { pmDelArm = true; renderProjMenu(); return; }
   const wasOpen = !$('#scrList').hidden && D.cur === pmId;
+  const before = new Set(orphanPdfs().map(x => x.key));
   D.setlists = D.setlists.filter(x => x.id !== pmId);
   if (D.cur === pmId) D.cur = D.setlists.length ? D.setlists[0].id : null;
-  save(); closeSheet(); renderHome(); toast('삭제했어요');
+  // 이 프로젝트만 쓰던 PDF는 파일까지 지움 (원래 갈 곳 없던 PDF는 설정에서 따로 정리)
+  const only = orphanPdfs().filter(x => !before.has(x.key)).map(x => x.key);
+  dropFiles(only);
+  save(); closeSheet(); renderHome(); toast(only.length ? `삭제했어요 · PDF ${only.length}개도 지웠어요` : '삭제했어요');
   if (wasOpen) setTimeout(() => history.back(), 60);
 };
 
@@ -1429,16 +1447,9 @@ H.pmDel = () => {
 let libDelArm = null;
 function openSettings() { libDelArm = null; renderSettings(); openSheet('settings'); }
 function rerenderSettings() { const st = sheet.scrollTop; renderSettings(); sheet.scrollTop = st; }
-H.libAdd = () => pickPdfFile(() => { if (sheetKind === 'settings') rerenderSettings(); });
-H.libDel = b => {
-  const k = b.dataset.k;
-  if (libDelArm !== k) { libDelArm = k; rerenderSettings(); return; }
-  libDelArm = null;
-  D.library = D.library.filter(x => x.key !== k);
-  D.setlists.forEach(sl => { sl.pdfs = sl.pdfs.filter(x => x !== k); sl.songs.forEach(s => dropKey(s, k)); });
-  DOCS.delete(k); save(); gcSheets(); renderList(); rerenderSettings();
-  if (!$('#scrPlay').hidden) renderPlay();
-  toast('악보함에서 지웠어요');
+H.libPrune = () => {
+  if (libDelArm !== 'prune') { libDelArm = 'prune'; rerenderSettings(); return; }
+  libDelArm = null; const n = pruneLibrary(); rerenderSettings(); toast(`PDF ${n}개를 지웠어요`);
 };
 function renderSettings() {
   const S = D.settings, canVib = !!navigator.vibrate;
@@ -1457,19 +1468,17 @@ function renderSettings() {
     ${tgl('pgBtns', '악보 위 ‹ › 넘김 버튼', S.pgBtns, '끄면 옆으로 밀기·페달로만 넘겨요')}
     ${tgl('wake', '재생 화면에서 화면 꺼짐 방지', S.wake)}
     ${tgl('nextAuto', '재생 중 다음 곡으로 넘기면 바로 시작', S.nextAuto, '끄면 넘긴 뒤 정지 상태로 기다려요')}
-    <div class="sec-t">악보함 (PDF)</div>
-    ${D.library.length ? `<div class="slrows">${D.library.map(x => { const n = D.setlists.reduce((a, sl) => a + sl.songs.filter(s => usesKey(s, x.key)).length, 0);
-      return `<div class="librow"><span class="nm"><b>𝄞 ${esc(x.name)}</b><small>${x.pages ? x.pages + '쪽' : '쪽 수 확인 전'} · ${n ? n + '곡에서 사용' : '쓰는 곡 없음'}</small></span>
-        <button type="button" class="danger" data-act="libDel" data-k="${esc(x.key)}">${libDelArm === x.key ? (n ? `${n}곡 악보도 빠져요 · 삭제` : '한 번 더 누르면 삭제') : '삭제'}</button></div>`; }).join('')}</div>`
-      : '<p class="note">아직 넣은 PDF가 없어요. 프로젝트 관리(⋯)에서 프로젝트마다 PDF를 넣고, 곡 편집에서 쪽을 골라 쓰세요.</p>'}
-    <button type="button" class="pill" data-act="libAdd" style="align-self:flex-start">＋ PDF 넣기</button>
+    <div class="sec-t">악보 (PDF)</div>
+    <p class="note">악보는 프로젝트마다 따로 넣고 빼요. 프로젝트 화면 오른쪽 위 ⋯ → "이 프로젝트 악보".</p>
+    ${(() => { const o = orphanPdfs(); return o.length ? `<div class="librow"><span class="nm"><b>어느 프로젝트에도 없는 PDF ${o.length}개</b><small>${esc(o.map(x => x.name).join(', '))}</small></span>
+      <button type="button" class="danger" data-act="libPrune">${libDelArm === 'prune' ? '한 번 더 누르면 지우기' : '지우기'}</button></div>` : ''; })()}
     <div class="sec-t">백업</div>
     <div class="sh-actions" style="padding-top:0"><button type="button" data-act="exportD">내보내기</button><button type="button" data-act="importD">불러오기</button></div>
     <p class="note">불러온 셋리스트는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전. 악보 화면에선 페달이 악보를 넘기고, 마지막에서 한 번 더 누르면 다음 곡.</p>
     <p class="note">분할 화면이나 작은 창으로 띄우면 버튼만 남은 작은 배치로 바뀌어요.</p>
-    <p class="note" style="color:var(--dim)">카운트인 v1.6 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v1.7 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -1502,6 +1511,35 @@ $('#fileIn').onchange = async e => {
     save(); renderList(); closeSheet(); toast(`셋리스트 ${add.length}개를 불러왔어요`);
   } catch (err) { toast('카운트인 백업 파일이 아니에요'); }
 };
+
+/* ================= 키보드 ================= */
+// 키보드가 화면을 줄여 주지 않는 환경(아이폰 사파리, 일부 안드로이드 앱)에서 키보드 높이만큼 창을 올림
+(() => {
+  const root = document.documentElement;
+  let baseH = innerHeight, nativeKb = 0;
+  const set = px => root.style.setProperty('--kb', Math.max(0, Math.round(px)) + 'px');
+  const calc = () => {
+    const vv = window.visualViewport;
+    let kb = vv ? innerHeight - vv.height - vv.offsetTop : 0;
+    // 앱 키보드 높이: 화면이 이미 그만큼 줄었으면 빼고
+    if (nativeKb) kb = Math.max(kb, nativeKb - Math.max(0, baseH - innerHeight));
+    set(kb > 60 ? kb : 0);
+  };
+  window.addEventListener('resize', () => { if (!nativeKb && !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) baseH = innerHeight; calc(); });
+  if (window.visualViewport) { visualViewport.addEventListener('resize', calc); visualViewport.addEventListener('scroll', calc); }
+  const KB = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Keyboard;
+  if (KB) {
+    KB.addListener('keyboardDidShow', i => { nativeKb = i.keyboardHeight || 0; calc(); setTimeout(calc, 200); });
+    KB.addListener('keyboardDidHide', () => { nativeKb = 0; set(0); });
+  }
+  // 입력칸을 누르면 창 안에서 그 칸이 보이게
+  document.addEventListener('focusin', e => {
+    const el = e.target;
+    if (!el.matches || !el.matches('input:not([type=range]):not([type=file]),textarea')) return;
+    setTimeout(() => { calc(); try { el.scrollIntoView({block:'center', behavior:'smooth'}); } catch (err) {} }, 320);
+  });
+  document.addEventListener('focusout', () => setTimeout(calc, 120));
+})();
 
 /* ================= 시작 ================= */
 renderHome(); show('home');
