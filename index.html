@@ -271,6 +271,22 @@ input[type=range]{width:100%;accent-color:var(--beat)}
 .librow .nm small{font-family:var(--f-mono);font-size:11px;color:var(--mute)}
 .librow button{flex:none;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px}
 
+/* ---------- 탭 패드 ---------- */
+.tpad{position:fixed;inset:0;z-index:25;background:var(--ink);display:flex;flex-direction:column;padding:var(--st) var(--sr) var(--sb) var(--sl)}
+.tpad-top{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.tpad-top h2{font-size:16px;margin:0;color:var(--mute);font-weight:600}
+.tpad-top .txtbtn{padding:10px 8px}
+.tpad-area{flex:1;margin:16px 12px 12px;border-radius:26px;background:var(--panel);border:1.5px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;touch-action:none;-webkit-user-select:none;user-select:none;position:relative;overflow:hidden}
+.tpad-area.hit{background:var(--raise);border-color:var(--beat)}
+.tpad-bpm{font-family:var(--f-num);font-weight:800;font-size:clamp(84px,26vw,160px);line-height:1;color:var(--text)}
+.tpad-bpm.dim{color:var(--dim)}
+.tpad-st{font-size:15px;color:var(--mute);text-align:center;padding:0 16px}
+.tpad-st b{color:var(--cue);font-weight:600}
+.tpad-st b.warn{color:var(--beat)}
+.tpad-hint{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:13px;color:var(--dim);pointer-events:none}
+.tpad-dots{display:flex;gap:6px}
+.tpad-dots i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.tpad-dots i.on{background:var(--beat)}
 .toast{position:fixed;left:50%;bottom:calc(24px + var(--sb));transform:translateX(-50%);background:var(--text);color:var(--ink);padding:10px 18px;border-radius:999px;font-size:14px;z-index:30;pointer-events:none;white-space:nowrap}
 </style>
 </head>
@@ -355,6 +371,15 @@ input[type=range]{width:100%;accent-color:var(--beat)}
 <canvas id="edgeCv" class="edgecv" hidden></canvas>
 <input type="file" id="pdfIn" accept="application/pdf,.pdf" hidden>
 <div id="shw" class="shw" hidden><div id="sheet" class="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="tpad" class="tpad" hidden role="dialog" aria-modal="true" aria-label="탭 템포">
+  <div class="tpad-top"><button class="txtbtn" id="tpCancel">취소</button><h2>탭 템포</h2><button class="txtbtn strong" id="tpApply">적용</button></div>
+  <div class="tpad-area" id="tpArea">
+    <div class="tpad-bpm num dim" id="tpBpm">—</div>
+    <div class="tpad-st" id="tpSt">박에 맞춰 이 칸 아무 데나 두드리세요</div>
+    <div class="tpad-dots" id="tpDots"></div>
+    <div class="tpad-hint">4번 이상 두드리면 정확해져요 · 2.5초 쉬면 처음부터</div>
+  </div>
+</div>
 <div id="toast" class="toast" hidden></div>
 <input type="file" id="fileIn" accept="application/json,.json" hidden>
 
@@ -368,7 +393,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /* ================= 데이터 ================= */
 const KEY = 'countin.v1';
-const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true};
+const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true, visOffset:0};
 const VIS = [['pulse','원'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자'],['edge','테두리']];
 const SOUNDS = [['wood','우드블록'],['beep','비프'],['cow','카우벨'],['stick','사이드스틱']];
 function newSong(o = {}) {
@@ -456,16 +481,64 @@ const meta = s => [s.sheet ? '𝄞 ' + sheetLabel(s.sheet.items) : '', sigL(s), 
 let toastT;
 function toast(m) { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 1900); }
 
-function makeTapper(cb) {
-  let ts = [];
-  return () => {
-    const now = performance.now();
-    if (ts.length && now - ts[ts.length - 1] > 2000) ts = [];
-    ts.push(now); if (ts.length > 8) ts.shift();
-    if (ts.length >= 3) cb(Math.round(60000 / ((ts[ts.length - 1] - ts[0]) / (ts.length - 1))), ts.length);
-    else cb(null, ts.length);
-  };
+// 두드린 시각들 → BPM. 중앙값에서 크게 벗어난 간격(놓친 박·두 번 누름)은 빼고, 두 박 간격은 반으로 나눠 씀
+function tapBpm(ts) {
+  const iv = [];
+  for (let i = 1; i < ts.length; i++) iv.push(ts[i] - ts[i - 1]);
+  if (iv.length < 2) return null;
+  const sorted = [...iv].sort((a, b) => a - b), med = sorted[sorted.length >> 1];
+  const ok = [];
+  iv.forEach(x => {
+    if (Math.abs(x - med) <= med * .2) ok.push(x);
+    else if (Math.abs(x / 2 - med) <= med * .15) ok.push(x / 2);
+  });
+  if (ok.length < 2) return null;
+  const mean = ok.reduce((a, b) => a + b, 0) / ok.length;
+  const sd = Math.sqrt(ok.reduce((a, b) => a + (b - mean) ** 2, 0) / ok.length);
+  return {bpm:clamp(Math.round(60000 / mean), 20, 300), cv:sd / mean, used:ok.length, dropped:iv.length - ok.length};
 }
+
+/* ---------- 탭 패드: 큰 영역 아무 데나 두드려서 템포 재기 ---------- */
+const TP = {ts:[], res:null, cb:null, flashT:0};
+function openTapPad(start, cb) {
+  TP.ts = []; TP.res = null; TP.cb = cb; TP.start = start;
+  $('#tpBpm').textContent = start || '—'; $('#tpBpm').classList.add('dim');
+  $('#tpSt').textContent = '박에 맞춰 이 칸 아무 데나 두드리세요';
+  $('#tpDots').innerHTML = '';
+  $('#tpApply').disabled = true;
+  $('#tpad').hidden = false;
+  history.pushState({s:'tap'}, '');
+}
+function closeTapPad(fromPop) {
+  if ($('#tpad').hidden) return;
+  $('#tpad').hidden = true;
+  if (!fromPop) { ignorePop = true; history.back(); }
+}
+function tapHit(t) {
+  if (TP.ts.length && t - TP.ts[TP.ts.length - 1] > 2500) TP.ts = [];
+  TP.ts.push(t); if (TP.ts.length > 12) TP.ts.shift();
+  const a = $('#tpArea'); a.classList.add('hit'); clearTimeout(TP.flashT); TP.flashT = setTimeout(() => a.classList.remove('hit'), 90);
+  try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
+  const n = TP.ts.length;
+  $('#tpDots').innerHTML = Array.from({length:Math.min(n, 8)}, () => '<i class="on"></i>').join('') + Array.from({length:Math.max(0, 4 - n)}, () => '<i></i>').join('');
+  const r = tapBpm(TP.ts); TP.res = r;
+  if (!r) { $('#tpSt').textContent = n === 1 ? '좋아요, 계속 두드리세요' : '조금만 더 두드리세요'; return; }
+  $('#tpBpm').textContent = r.bpm; $('#tpBpm').classList.remove('dim');
+  const lv = r.cv < .03 ? '<b>안정적</b>' : r.cv < .07 ? '<b class="warn">조금 흔들림</b>' : '<b class="warn">흔들림 · 계속 두드려 보세요</b>';
+  $('#tpSt').innerHTML = `${n}번 두드림 · ${lv}${r.dropped ? ` · 튀는 ${r.dropped}번 뺌` : ''}`;
+  $('#tpApply').disabled = false;
+}
+// 손가락이 닿는 순간(pointerdown)의 시각으로 잼
+$('#tpArea').addEventListener('pointerdown', e => { e.preventDefault(); tapHit(e.timeStamp || performance.now()); });
+$('#tpArea').addEventListener('contextmenu', e => e.preventDefault());
+$('#tpCancel').onclick = () => closeTapPad();
+$('#tpApply').onclick = () => { if (TP.res && TP.cb) TP.cb(TP.res.bpm); closeTapPad(); };
+// 페달·키보드로도 두드리기 (스페이스·엔터·T·→·PageDown)
+document.addEventListener('keydown', e => {
+  if ($('#tpad').hidden) return;
+  if ([' ', 'Enter', 't', 'T', 'ArrowRight', 'PageDown', 'ArrowDown'].includes(e.key)) { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) tapHit(e.timeStamp || performance.now()); }
+  else if (e.key === 'Escape') { e.preventDefault(); closeTapPad(); }
+}, true);
 
 /* ================= 오디오 / 박 엔진 ================= */
 const E = {ctx:null, master:null, noise:null, playing:false, start:0, spb:.5, n:0, sub:0};
@@ -502,7 +575,7 @@ function click(t, lvl, kind = D.settings.sound) {
 }
 function vib(t, accent) {
   if (!navigator.vibrate) return;
-  const ms = Math.max(0, (t - E.ctx.currentTime) * 1000);
+  const ms = Math.max(0, (t - outNow()) * 1000 - D.settings.visOffset);
   setTimeout(() => { try { navigator.vibrate(accent ? 70 : 35); } catch (e) {} }, ms);
 }
 function schedule() {
@@ -535,10 +608,20 @@ function start() {
   updPlayBtn();
 }
 function stop() { E.playing = false; updPlayBtn(); }
+// 지금 스피커로 나오고 있는 소리의 시각(오디오 시계 기준). getOutputTimestamp로 끊김 없이 이어서 계산
+function outNow() {
+  const c = E.ctx;
+  if (c.getOutputTimestamp) {
+    const ts = c.getOutputTimestamp();
+    if (ts.contextTime > 0 && ts.performanceTime > 0) return ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
+  }
+  return c.currentTime - (c.outputLatency || 0) - (c.baseLatency || 0);
+}
+// 화면에 그릴 박 위치: 그린 뒤 화면에 나오기까지 한 프레임(약 16ms)을 미리 당기고, 사용자 보정값을 더함
+const FRAME_AHEAD = .016;
 function beatNow() {
   if (!E.playing || !E.ctx) return null;
-  const lat = D.settings.soundOn ? (E.ctx.outputLatency || 0) + (E.ctx.baseLatency || 0) : 0;
-  return (E.ctx.currentTime - lat - E.start) / E.spb;
+  return (outNow() + FRAME_AHEAD + D.settings.visOffset / 1000 - E.start) / E.spb;
 }
 
 /* ================= 그리기 ================= */
@@ -1023,8 +1106,7 @@ $('#modes').addEventListener('click', e => {
   const s = song(); if (s.visual) s.visual = b.dataset.m; else D.settings.visual = b.dataset.m;
   save(); $('#modes').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
 });
-const playTap = makeTapper(v => { if (v) setBpm(v); });
-$('#bTap').onclick = playTap;
+$('#bTap').onclick = () => openTapPad(P.bpm, v => { setBpm(v); toast(`${v} BPM · 저장하려면 '이 템포로 저장'`); });
 function holdBtn(el, step) {
   let t1, t2, fired = false;
   const end = () => { clearTimeout(t1); clearInterval(t2); };
@@ -1140,6 +1222,7 @@ function closeSheet(fromPop) { if ($('#shw').hidden) return; $('#shw').hidden = 
 $('#shw').addEventListener('click', e => { if (e.target.id === 'shw') closeSheet(); });
 window.addEventListener('popstate', () => {
   if (ignorePop) { ignorePop = false; return; }
+  if (!$('#tpad').hidden) { closeTapPad(true); return; }
   if (!$('#shw').hidden) { closeSheet(true); return; }
   if (!$('#scrPlay').hidden) {
     if (P.locked) { history.pushState({s:'play'}, ''); toast('잠금 중이에요 · 🔒 길게 눌러 해제'); return; }
@@ -1196,7 +1279,7 @@ function renderEditor() {
       <button type="button" class="rbtn" data-act="bpm" data-v="-1" aria-label="BPM 내리기">−</button>
       <input id="fBpm" type="number" inputmode="numeric" min="20" max="300" value="${d.bpm}" aria-label="BPM">
       <button type="button" class="rbtn" data-act="bpm" data-v="1" aria-label="BPM 올리기">+</button>
-      <button type="button" class="tapbtn" data-act="tap" id="fTap">박에 맞춰 두드리기</button></div></div>
+      <button type="button" class="tapbtn" data-act="tap" id="fTap">✋ 두드려서 재기</button></div></div>
     ${seg('sig', '박자', [...SIGS.map(([n, de]) => [`${n}/${de}`, `${n}/${de}`]), ['custom', '직접']], sigCur)}
     ${d._custom ? `<div class="row2"><input id="fNum" class="inp num" type="number" inputmode="numeric" min="1" max="16" value="${d.num}" aria-label="한 마디 박 수"><span style="flex:0;color:var(--mute)">/</span>
       <select id="fDen" class="inp" aria-label="박 단위">${[2, 4, 8, 16].map(x => `<option value="${x}" ${x === d.den ? 'selected' : ''}>${x}</option>`).join('')}</select></div>` : ''}
@@ -1235,10 +1318,9 @@ H.tgl = b => {
   else draft[k] = on;
 };
 H.bpm = b => { syncDraft(); draft.bpm = clamp(draft.bpm + +b.dataset.v, 20, 300); $('#fBpm').value = draft.bpm; };
-let edTap = null;
 H.tap = () => {
-  if (!edTap) edTap = makeTapper((v, n) => { if (v) { draft.bpm = clamp(v, 20, 300); $('#fBpm').value = draft.bpm; $('#fTap').textContent = `${draft.bpm} BPM · ${n}번`; } else $('#fTap').textContent = `계속 두드리세요 · ${n}번`; });
-  edTap();
+  syncDraft();
+  openTapPad(draft.bpm, v => { draft.bpm = v; const el = $('#fBpm'); if (el) el.value = v; });
 };
 H.rmSheet = () => { syncDraft(); draft.sheet = null; const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st; };
 
@@ -1353,7 +1435,7 @@ H.saveSong = () => {
   const songs = curSL().songs, old = draftIdx >= 0 ? songs[draftIdx] : null;
   const sheetChanged = JSON.stringify(old && old.sheet) !== JSON.stringify(s.sheet);
   if (draftIdx >= 0) songs[draftIdx] = s; else songs.push(s);
-  save(); closeSheet(); renderList(); edTap = null;
+  save(); closeSheet(); renderList();
   if (!$('#scrPlay').hidden && draftIdx === P.i) { stop(); P.bpm = s.bpm; if (s.sheet && sheetChanged) P.sheetOn = true; renderPlay(); }
   toast('저장했어요');
 };
@@ -1461,6 +1543,8 @@ function renderSettings() {
     <button type="button" class="pill" data-act="preview" style="align-self:flex-start">▶ 들어보기</button>
     <label class="fld"><span>볼륨</span><input id="sVol" type="range" min="0" max="1" step="0.05" value="${S.volume}"></label>
     <label class="fld"><span>쪼개기 볼륨</span><input id="sSub" type="range" min="0" max="1" step="0.05" value="${S.subVol}"></label>
+    <label class="fld"><span>화면 박 타이밍 보정 · <b id="sOffV">${S.visOffset > 0 ? '+' : ''}${S.visOffset}ms</b></span><input id="sOff" type="range" min="-250" max="100" step="5" value="${S.visOffset}"></label>
+    <p class="note">재생하면서 소리와 화면 빛이 같이 맞는지 보세요. 화면이 늦으면 오른쪽(+), 블루투스 이어폰처럼 소리가 늦게 들리면 왼쪽(−)으로. 진동도 같이 맞춰져요.</p>
     ${seg('vibrate', '소리 꺼졌을 때 진동', [['off', '끔'], ['down', '첫 박만'], ['all', '매 박']], S.vibrate)}
     ${canVib ? '' : '<p class="note">이 폰(브라우저)은 진동을 지원하지 않아요. 아이폰 웹앱은 진동이 안 돼요.</p>'}
     ${tgl('showBar', '마디 번호 표시', S.showBar, '본박부터 1마디. 반복 구간에서 어긋나면 ±로 맞춰요')}
@@ -1478,10 +1562,11 @@ function renderSettings() {
     <div class="sec-t">조작</div>
     <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전. 악보 화면에선 페달이 악보를 넘기고, 마지막에서 한 번 더 누르면 다음 곡.</p>
     <p class="note">분할 화면이나 작은 창으로 띄우면 버튼만 남은 작은 배치로 바뀌어요.</p>
-    <p class="note" style="color:var(--dim)">카운트인 v1.7 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v1.8 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
+  $('#sOff').oninput = e => { S.visOffset = +e.target.value; $('#sOffV').textContent = (S.visOffset > 0 ? '+' : '') + S.visOffset + 'ms'; save(); };
 }
 function setSeg(k, v, b) {
   D.settings[k] = v; save();
