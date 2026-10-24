@@ -393,7 +393,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /* ================= 데이터 ================= */
 const KEY = 'countin.v1';
-const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true, visOffset:0};
+const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true, visOffset:0, songFlip:2};
 const VIS = [['pulse','원'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자'],['edge','테두리']];
 const SOUNDS = [['wood','우드블록'],['beep','비프'],['cow','카우벨'],['stick','사이드스틱']];
 function newSong(o = {}) {
@@ -871,15 +871,19 @@ function turnPage(d) {
   box.scrollTo({top:clamp(box.scrollTop + d * Hh * .85, 0, max), behavior:'smooth'});
   return true;
 }
-// 넘기다 끝에 닿으면: 한 번은 알려주고, 2.5초 안에 한 번 더 넘기면 곡 이동 (무대 실수 방지)
-let edgeArm = null, edgeArmT = 0;
+// 넘기다 끝에 닿으면: 설정한 횟수(1~3번)만큼 넘겨야 곡 이동 (2.5초 안에 이어서, 무대 실수 방지)
+let edgeArm = null, edgeArmT = 0, edgeCnt = 0;
 function flip(d) {
-  if (turnPage(d)) { edgeArm = null; return; }
+  if (turnPage(d)) { edgeArm = null; edgeCnt = 0; return; }
   const list = curSL().songs, j = P.i + d;
   if (j < 0 || j >= list.length) { toast(d > 0 ? '마지막 곡의 마지막 쪽이에요' : '첫 쪽이에요'); return; }
-  if (edgeArm === d && performance.now() - edgeArmT < 2500) { edgeArm = null; go(j); toast(`${j + 1}. ${list[j].title || '제목 없음'}`); return; }
-  edgeArm = d; edgeArmT = performance.now();
-  toast(d > 0 ? `한 번 더 넘기면 다음 곡 · ${list[j].title || '제목 없음'}` : `한 번 더 넘기면 이전 곡 · ${list[j].title || '제목 없음'}`);
+  const need = clamp(+D.settings.songFlip || 2, 1, 3), now = performance.now();
+  edgeCnt = edgeArm === d && now - edgeArmT < 2500 ? edgeCnt + 1 : 1;
+  edgeArm = d; edgeArmT = now;
+  const name = list[j].title || '제목 없음';
+  if (edgeCnt >= need) { edgeArm = null; edgeCnt = 0; go(j); toast(`${j + 1}. ${name}`); return; }
+  const left = need - edgeCnt;
+  toast(`${left === 1 ? '한 번' : '두 번'} 더 넘기면 ${d > 0 ? '다음' : '이전'} 곡 · ${name}`);
 }
 $('#sheetBox').addEventListener('scroll', updPg, {passive:true});
 $('#pgPrev').onclick = () => { flip(-1); kickUi(); };
@@ -1550,6 +1554,8 @@ function renderSettings() {
     ${tgl('showBar', '마디 번호 표시', S.showBar, '본박부터 1마디. 반복 구간에서 어긋나면 ±로 맞춰요')}
     ${tgl('sheetAuto', '악보 있는 곡은 악보 화면으로 열기', S.sheetAuto, '악보 화면에선 화면 테두리가 박을 보여줘요')}
     ${tgl('pgBtns', '악보 위 ‹ › 넘김 버튼', S.pgBtns, '끄면 옆으로 밀기·페달로만 넘겨요')}
+    ${seg('songFlip', '마지막 쪽에서 다음 곡으로 넘어가려면', [[1, '1번 넘김'], [2, '2번 넘김'], [3, '3번 넘김']], S.songFlip)}
+    <p class="note">버튼·옆으로 밀기·페달 모두 같아요. 1번이면 바로 넘어가고, 2~3번이면 실수로 곡이 바뀌는 걸 막아줘요.</p>
     ${tgl('wake', '재생 화면에서 화면 꺼짐 방지', S.wake)}
     ${tgl('nextAuto', '재생 중 다음 곡으로 넘기면 바로 시작', S.nextAuto, '끄면 넘긴 뒤 정지 상태로 기다려요')}
     <div class="sec-t">악보 (PDF)</div>
@@ -1562,7 +1568,7 @@ function renderSettings() {
     <div class="sec-t">조작</div>
     <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전. 악보 화면에선 페달이 악보를 넘기고, 마지막에서 한 번 더 누르면 다음 곡.</p>
     <p class="note">분할 화면이나 작은 창으로 띄우면 버튼만 남은 작은 배치로 바뀌어요.</p>
-    <p class="note" style="color:var(--dim)">카운트인 v1.8 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v1.9 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
