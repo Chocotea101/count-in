@@ -38,7 +38,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--beat);outline-o
   padding:var(--st) max(0px,var(--sr)) var(--sb) max(0px,var(--sl))}
 
 /* ---------- 목록 ---------- */
-.lh{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px 10px}
+.lh{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 12px 10px}
+.lh .slpick{flex:1}
 .slpick{display:flex;flex-direction:column;align-items:flex-start;min-width:0;text-align:left}
 .slpick .d{font-family:var(--f-mono);font-size:11px;color:var(--mute);letter-spacing:.06em}
 .slpick .n{font-size:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
@@ -56,9 +57,26 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--beat);outline-o
 .sl .b{font-family:var(--f-num);font-weight:800;font-size:32px;line-height:1;text-align:right}
 .sl .b small{display:block;font-family:var(--f-mono);font-weight:400;font-size:9px;color:var(--mute);letter-spacing:.1em}
 .sl .more{width:48px;font-size:22px;color:var(--mute);flex:none}
-.sl .ord{display:flex;flex-direction:column;flex:none;border-left:1px solid var(--line)}
-.sl .ord button{flex:1;width:52px;font-size:16px}
-.sl .ord button+button{border-top:1px solid var(--line)}
+.sl,.pl{position:relative}
+.sl li.tip,.pl li.tip{display:block;background:none;text-align:center;font-size:12px;color:var(--dim);padding:6px 0 2px;border:0}
+li.dragging{position:relative;z-index:5;box-shadow:0 14px 34px rgba(0,0,0,.55);outline:2px solid var(--beat)}
+.sorting li:not(.dragging){transition:none}
+/* ---------- 홈 ---------- */
+.hh{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 16px 4px}
+.brand{display:flex;align-items:center;gap:10px;font-size:24px;font-weight:800;letter-spacing:-.01em}
+.brand i{width:14px;height:14px;border-radius:50%;background:var(--down);box-shadow:0 0 12px var(--down)}
+.hsub{font-family:var(--f-mono);font-size:11px;color:var(--mute);letter-spacing:.1em;padding:12px 18px 6px}
+.pl{list-style:none;margin:0;padding:4px 12px 12px;display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.pl li{display:flex;align-items:stretch;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.pcard{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;padding:16px;text-align:left}
+.pcard .pn{font-size:19px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .pm{font-family:var(--f-mono);font-size:12px;color:var(--mute)}
+.pcard .bpms{font-family:var(--f-num);font-weight:800;font-size:22px;color:var(--beat);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .bpms small{font-family:var(--f-mono);font-weight:400;font-size:10px;color:var(--mute);margin-left:4px}
+.pact{display:flex;flex-direction:column;border-left:1px solid var(--line);flex:none}
+.pact button{flex:1;width:58px}
+.pact .pplay{font-size:20px;color:var(--beat)}
+.pact .more{font-size:22px;color:var(--mute);border-top:1px solid var(--line)}
 .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--mute);text-align:center;padding:24px}
 .empty b{color:var(--text);font-size:18px}
 .lf{display:flex;gap:10px;padding:10px 12px 14px}
@@ -258,12 +276,25 @@ input[type=range]{width:100%;accent-color:var(--beat)}
 </head>
 <body>
 
-<!-- ===== 셋리스트 ===== -->
-<section id="scrList" class="scr">
+<!-- ===== 홈: 프로젝트 목록 ===== -->
+<section id="scrHome" class="scr">
+  <header class="hh">
+    <div class="brand"><i></i>카운트인</div>
+    <button id="bSettingsH" class="icbtn" aria-label="설정">⚙︎</button>
+  </header>
+  <div class="hsub">프로젝트</div>
+  <ul id="projList" class="pl"></ul>
+  <div id="emptyHome" class="empty" hidden><b>프로젝트가 없어요</b><span>예배·공연·합주마다 프로젝트를 만들고<br>곡과 BPM을 저장해 두세요.</span></div>
+  <footer class="lf"><button id="bNewProj" class="go">＋ 새 프로젝트</button></footer>
+</section>
+
+<!-- ===== 프로젝트 안: 곡(BPM) 목록 ===== -->
+<section id="scrList" class="scr" hidden>
   <header class="lh">
-    <button id="slPick" class="slpick" aria-label="셋리스트 바꾸기"><span class="d">셋리스트 ▾</span><span class="n" id="slName"></span></button>
+    <button id="bHome" class="back" aria-label="홈으로">‹ 홈</button>
+    <button id="slPick" class="slpick" aria-label="프로젝트 이름·관리"><span class="d">프로젝트</span><span class="n" id="slName"></span></button>
     <div class="lh-r">
-      <button id="bOrder" class="pill" aria-pressed="false">순서</button>
+      <button id="bProjMenu" class="icbtn" aria-label="프로젝트 관리">⋯</button>
       <button id="bSettings" class="icbtn" aria-label="설정">⚙︎</button>
     </div>
   </header>
@@ -344,7 +375,7 @@ function newSong(o = {}) {
   return Object.assign({id:uid(), title:'', bpm:100, num:4, den:4, pulse:'eighth', sub:'none', countIn:2, muteAfter:false, accent:true, visual:null, memo:'', sheet:null}, o);
 }
 function seed() {
-  const s = {id:uid(), name:'예시 셋리스트', songs:[
+  const s = {id:uid(), name:'예시 프로젝트', songs:[
     newSong({title:'여는 곡 (예시)', bpm:72, memo:'인트로 드럼만 4마디'}),
     newSong({title:'빠른 곡 (예시)', bpm:128, sub:'8', memo:'브릿지 하프타임'}),
     newSong({title:'셔플 곡 (예시)', bpm:64, num:6, den:8, pulse:'dotted', sub:'3'}),
@@ -356,8 +387,8 @@ function seed() {
 function fix(d) {
   d.settings = Object.assign({...DEF_SET}, d.settings || {});
   d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), songs:x.songs.map(s => newSong(s))}));
-  if (!d.setlists.length) d.setlists.push({id:uid(), name:'내 셋리스트', songs:[]});
-  if (!d.setlists.some(x => x.id === d.cur)) d.cur = d.setlists[0].id;
+  d.setlists.forEach(x => { if (x.name === '예시 셋리스트') x.name = '예시 프로젝트'; });
+  if (!d.setlists.some(x => x.id === d.cur)) d.cur = d.setlists.length ? d.setlists[0].id : null;
   d.library = (Array.isArray(d.library) ? d.library : []).filter(x => x && x.key).map(x => ({key:String(x.key), name:String(x.name || '악보'), pages:+x.pages || 0}));
   const lk = new Set(d.library.map(x => x.key));
   d.setlists.forEach(sl => sl.songs.forEach(s => {
@@ -769,39 +800,131 @@ function kickUi() { if ($('#scrPlay').classList.contains('ui')) setUi(true); }
 let rsT;
 new ResizeObserver(() => { if (!P.sheetOn) return; clearTimeout(rsT); rsT = setTimeout(renderPages, 200); }).observe($('#sheetBox'));
 
-/* ================= 셋리스트 화면 ================= */
-let orderMode = false;
+/* ================= 꾹 눌러 끌어서 순서 바꾸기 ================= */
+// li[data-i]를 0.38초 누르고 있으면 들려서 따라오고, 놓으면 onDrop(새 순서의 원래 번호 배열)
+function sortable(ul, onDrop) {
+  let st = null, suppress = false;
+  const items = () => [...ul.children].filter(x => x.dataset.i !== undefined);
+  const cancel = () => { if (st) clearTimeout(st.timer); st = null; };
+  ul.addEventListener('pointerdown', e => {
+    const li = e.target.closest('li[data-i]');
+    if (!li || e.button > 0 || items().length < 2) return;
+    st = {li, x0:e.clientX, y0:e.clientY, y:e.clientY, pid:e.pointerId, dragging:false};
+    st.timer = setTimeout(begin, 380);
+  });
+  function begin() {
+    if (!st) return;
+    st.dragging = true;
+    st.grab = st.y - st.li.getBoundingClientRect().top;
+    st.li.classList.add('dragging'); ul.classList.add('sorting');
+    try { st.li.setPointerCapture(st.pid); } catch (e) {}
+    try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
+    requestAnimationFrame(auto);
+  }
+  function place() {
+    const li = st.li, ur = ul.getBoundingClientRect(), mid = st.y - st.grab + li.offsetHeight / 2;
+    for (let g = 0; g < 50; g++) {
+      const its = items(), k = its.indexOf(li), prev = its[k - 1], next = its[k + 1];
+      if (next) { const r = next.getBoundingClientRect(); if (mid > r.top + r.height / 2) { ul.insertBefore(next, li); continue; } }
+      if (prev) { const r = prev.getBoundingClientRect(); if (mid < r.top + r.height / 2) { ul.insertBefore(li, prev); continue; } }
+      break;
+    }
+    li.style.transform = `translateY(${st.y - st.grab - (ur.top + li.offsetTop - ul.scrollTop)}px)`;
+  }
+  // 위·아래 끝으로 끌면 목록이 따라 스크롤
+  function auto() {
+    if (!st || !st.dragging) return;
+    const r = ul.getBoundingClientRect();
+    if (st.y < r.top + 56) { ul.scrollTop -= 8; place(); }
+    else if (st.y > r.bottom - 56) { ul.scrollTop += 8; place(); }
+    requestAnimationFrame(auto);
+  }
+  ul.addEventListener('pointermove', e => {
+    if (!st || e.pointerId !== st.pid) return;
+    st.y = e.clientY;
+    if (!st.dragging) { if (Math.hypot(e.clientX - st.x0, e.clientY - st.y0) > 8) cancel(); return; }
+    place();
+  });
+  function finish() {
+    if (!st) return;
+    clearTimeout(st.timer);
+    if (st.dragging) {
+      const order = items().map(x => +x.dataset.i);
+      st.li.classList.remove('dragging'); st.li.style.transform = ''; ul.classList.remove('sorting');
+      suppress = true; setTimeout(() => suppress = false, 400);
+      st = null;
+      if (order.some((v, i) => v !== i)) onDrop(order);
+    } else st = null;
+  }
+  ul.addEventListener('pointerup', finish);
+  ul.addEventListener('pointercancel', () => { if (st && st.dragging) finish(); else cancel(); });
+  ul.addEventListener('click', e => { if (suppress) { e.stopPropagation(); e.preventDefault(); suppress = false; } }, true);
+  ul.addEventListener('touchmove', e => { if (st && st.dragging) e.preventDefault(); }, {passive:false});
+  ul.addEventListener('contextmenu', e => e.preventDefault());
+}
+const reorder = (arr, order) => order.map(i => arr[i]);
+
+/* ================= 홈 (프로젝트 목록) ================= */
+function renderHome() {
+  const ul = $('#projList');
+  ul.innerHTML = D.setlists.map((p, i) => {
+    const n = p.songs.length, sh = p.songs.filter(s => s.sheet).length;
+    const bpms = p.songs.slice(0, 6).map(s => s.bpm).join(' · ') + (n > 6 ? ' …' : '');
+    return `<li data-i="${i}">
+      <button class="pcard" data-act="open"><span class="pn">${esc(p.name)}</span>
+        <span class="pm">${n ? n + '곡' : '곡 없음'}${sh ? ` · 𝄞 악보 ${sh}` : ''}</span>
+        ${n ? `<span class="bpms num">${bpms}<small>BPM</small></span>` : ''}</button>
+      <div class="pact"><button class="pplay" data-act="go" aria-label="${esc(p.name)} 1번부터 시작" ${n ? '' : 'disabled'}>▶</button><button class="more" data-act="menu" aria-label="${esc(p.name)} 관리">⋯</button></div>
+    </li>`;
+  }).join('') + (D.setlists.length > 1 ? '<li class="tip">꾹 눌러 끌면 순서를 바꿀 수 있어요</li>' : '');
+  const empty = !D.setlists.length;
+  $('#emptyHome').hidden = !empty; ul.hidden = empty;
+}
+$('#projList').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const p = D.setlists[+b.closest('li').dataset.i]; if (!p) return;
+  if (b.dataset.act === 'open') openProject(p.id);
+  else if (b.dataset.act === 'go') { openProject(p.id); openPlay(0, true); }
+  else openProjMenu(p.id);
+});
+sortable($('#projList'), order => { D.setlists = reorder(D.setlists, order); save(); renderHome(); });
+function openProject(id) { D.cur = id; save(); renderList(); show('list'); history.pushState({s:'list'}, ''); }
+function goHome() { show('home'); renderHome(); }
+$('#bNewProj').onclick = openNewProj;
+$('#bSettingsH').onclick = openSettings;
+$('#bHome').onclick = () => history.back();
+
+/* ================= 프로젝트 안 (곡 목록) ================= */
 function renderList() {
-  const sl = curSL();
+  const sl = curSL(); if (!sl) return;
   $('#slName').textContent = sl.name;
   const ul = $('#songList');
   ul.innerHTML = sl.songs.map((s, i) => `<li data-i="${i}">
     <button class="row" data-act="play"><span class="i">${i + 1}</span><span class="mid"><span class="tt">${esc(s.title) || '제목 없음'}</span><span class="mm">${esc(meta(s))}</span></span><span class="b num">${s.bpm}<small>BPM</small></span></button>
-    ${orderMode ? `<span class="ord"><button data-act="up" aria-label="위로" ${i === 0 ? 'disabled' : ''}>↑</button><button data-act="down" aria-label="아래로" ${i === sl.songs.length - 1 ? 'disabled' : ''}>↓</button></span>`
-                : `<button class="more" data-act="edit" aria-label="편집">⋯</button>`}</li>`).join('');
+    <button class="more" data-act="edit" aria-label="편집">⋯</button></li>`).join('')
+    + (sl.songs.length > 1 ? '<li class="tip">꾹 눌러 끌면 순서를 바꿀 수 있어요</li>' : '');
   const empty = !sl.songs.length;
   $('#emptyList').hidden = !empty; ul.hidden = empty;
   $('#bStart').disabled = empty;
-  $('#bOrder').setAttribute('aria-pressed', orderMode);
 }
 $('#songList').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
-  const i = +b.closest('li').dataset.i, songs = curSL().songs;
-  if (b.dataset.act === 'play') { if (!orderMode) openPlay(i, false); }
+  const i = +b.closest('li').dataset.i;
+  if (b.dataset.act === 'play') openPlay(i, false);
   else if (b.dataset.act === 'edit') openEditor(i);
-  else { const j = b.dataset.act === 'up' ? i - 1 : i + 1; [songs[i], songs[j]] = [songs[j], songs[i]]; save(); renderList(); }
 });
-$('#bOrder').onclick = () => { orderMode = !orderMode; renderList(); };
+sortable($('#songList'), order => { const sl = curSL(); sl.songs = reorder(sl.songs, order); save(); renderList(); });
 $('#bAdd').onclick = () => openEditor(-1);
 $('#bStart').onclick = () => openPlay(0, true);
 $('#bSettings').onclick = openSettings;
-$('#slPick').onclick = openSetlists;
+$('#slPick').onclick = () => openProjMenu(D.cur);
+$('#bProjMenu').onclick = () => openProjMenu(D.cur);
 
 /* ================= 플레이 화면 ================= */
 const P = {i:0, bpm:100, locked:false, barOff:0, sheetOn:false};
 const song = () => curSL().songs[P.i];
 const effMode = s => s.visual || D.settings.visual;
-function show(name) { $('#scrList').hidden = name !== 'list'; $('#scrPlay').hidden = name !== 'play'; }
+function show(name) { $('#scrHome').hidden = name !== 'home'; $('#scrList').hidden = name !== 'list'; $('#scrPlay').hidden = name !== 'play'; }
 function openPlay(i, autoplay) {
   P.i = i; loadSong(); show('play');
   history.pushState({s:'play'}, '');
@@ -985,8 +1108,9 @@ window.addEventListener('popstate', () => {
   if (!$('#shw').hidden) { closeSheet(true); return; }
   if (!$('#scrPlay').hidden) {
     if (P.locked) { history.pushState({s:'play'}, ''); toast('잠금 중이에요 · 🔒 길게 눌러 해제'); return; }
-    closePlay();
+    closePlay(); return;
   }
+  if (!$('#scrList').hidden) goHome();
 });
 const sheet = $('#sheet');
 const seg = (k, label, opts, cur) => `<div class="fld"><span>${label}</span><div class="seg" data-k="${k}">${opts.map(([v, l]) => `<button type="button" data-act="seg" data-v="${v}" aria-pressed="${String(v) === String(cur)}">${l}</button>`).join('')}</div></div>`;
@@ -1175,29 +1299,50 @@ H.delSong = () => {
   toast('삭제했어요');
 };
 
-/* ---------- 셋리스트 고르기 ---------- */
-let slDelArm = false;
-function openSetlists() { slDelArm = false; renderSetlists(); openSheet('setlists'); }
-function renderSetlists() {
-  const cur = curSL();
+/* ---------- 프로젝트 만들기·관리 ---------- */
+let pmId = null, pmDelArm = false;
+function openNewProj() {
   sheet.innerHTML = `<div class="grab"></div>
-  <div class="sh-head"><span></span><h2>셋리스트</h2><button class="txtbtn" data-act="close">닫기</button></div>
+  <div class="sh-head"><button class="txtbtn" data-act="close">취소</button><h2>새 프로젝트</h2><button class="txtbtn strong" data-act="mkProj">만들기</button></div>
   <div class="sh-body">
-    <div class="slrows">${D.setlists.map(x => `<button class="slrow" data-act="pickSL" data-id="${x.id}" aria-current="${x.id === cur.id}"><span>${esc(x.name)}</span><span>${x.songs.length}곡</span></button>`).join('')}</div>
-    <div class="fld"><span>새 셋리스트</span><div class="row2"><input id="newSL" class="inp" type="text" placeholder="예: 주일 2부 · 11월 2일" maxlength="40" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="addSL">추가</button></div></div>
-    <div class="sec-t">지금 셋리스트: ${esc(cur.name)}</div>
-    <div class="fld"><span>이름 바꾸기</span><div class="row2"><input id="renSL" class="inp" type="text" value="${esc(cur.name)}" maxlength="40" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="renSL">변경</button></div></div>
-    <div class="sh-actions"><button type="button" data-act="dupSL">복제</button><button type="button" class="danger" data-act="delSL" ${D.setlists.length < 2 ? 'disabled' : ''}>${slDelArm ? '한 번 더 누르면 삭제' : '삭제'}</button></div>
+    <label class="fld"><span>프로젝트 이름</span><input id="npName" type="text" placeholder="예: 주일 2부 예배 · 11월 2일" maxlength="40" autocomplete="off"></label>
+    <p class="note">예배·공연·합주처럼 한 번에 쓰는 곡 묶음이에요. 안에서 곡마다 BPM·박자·악보를 저장해요.</p>
+  </div>`;
+  openSheet('newproj');
+  setTimeout(() => { const t = $('#npName'); t && t.focus(); }, 250);
+  $('#npName').addEventListener('keydown', e => { if (e.key === 'Enter') H.mkProj(); });
+}
+H.mkProj = () => {
+  const n = ($('#npName').value || '').trim() || '새 프로젝트';
+  const x = {id:uid(), name:n, songs:[]}; D.setlists.push(x); save();
+  closeSheet(); renderHome();
+  setTimeout(() => { openProject(x.id); toast(`"${n}" 만들었어요 · ＋로 곡을 넣으세요`); }, 60);
+};
+function openProjMenu(id) { pmId = id; pmDelArm = false; renderProjMenu(); openSheet('projmenu'); }
+function renderProjMenu() {
+  const p = D.setlists.find(x => x.id === pmId); if (!p) return;
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><span></span><h2>프로젝트 관리</h2><button class="txtbtn" data-act="close">닫기</button></div>
+  <div class="sh-body">
+    <div class="fld"><span>이름</span><div class="row2"><input id="pmName" class="inp" type="text" value="${esc(p.name)}" maxlength="40" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="pmRen">변경</button></div></div>
+    <p class="note">${p.songs.length}곡${p.songs.length ? ' · ' + p.songs.map(s => s.bpm).join(' → ') + ' BPM' : ''}</p>
+    <div class="sh-actions"><button type="button" data-act="pmDup">복제</button><button type="button" class="danger" data-act="pmDel">${pmDelArm ? (p.songs.length ? `${p.songs.length}곡도 지워져요 · 삭제` : '한 번 더 누르면 삭제') : '삭제'}</button></div>
   </div>`;
 }
-H.pickSL = b => { D.cur = b.dataset.id; save(); renderList(); closeSheet(); };
-H.addSL = () => { const n = $('#newSL').value.trim() || '새 셋리스트'; const x = {id:uid(), name:n, songs:[]}; D.setlists.push(x); D.cur = x.id; save(); renderList(); closeSheet(); toast(`"${n}" 만들었어요`); };
-H.renSL = () => { const n = $('#renSL').value.trim(); if (!n) return; curSL().name = n; save(); renderList(); renderSetlists(); toast('이름을 바꿨어요'); };
-H.dupSL = () => { const c = curSL(), x = {id:uid(), name:c.name + ' 복사', songs:c.songs.map(s => ({...s, id:uid()}))}; D.setlists.push(x); D.cur = x.id; save(); renderList(); renderSetlists(); toast('복제했어요'); };
-H.delSL = () => {
-  if (D.setlists.length < 2) return;
-  if (!slDelArm) { slDelArm = true; renderSetlists(); return; }
-  D.setlists = D.setlists.filter(x => x.id !== D.cur); D.cur = D.setlists[0].id; save(); renderList(); closeSheet(); gcSheets(); toast('삭제했어요');
+const refreshLists = () => { renderHome(); if (!$('#scrList').hidden) renderList(); };
+H.pmRen = () => { const n = $('#pmName').value.trim(); if (!n) return; D.setlists.find(x => x.id === pmId).name = n; save(); refreshLists(); renderProjMenu(); toast('이름을 바꿨어요'); };
+H.pmDup = () => {
+  const i = D.setlists.findIndex(x => x.id === pmId), c = D.setlists[i];
+  D.setlists.splice(i + 1, 0, {id:uid(), name:c.name + ' 복사', songs:c.songs.map(s => ({...s, id:uid()}))});
+  save(); refreshLists(); closeSheet(); toast('복제했어요');
+};
+H.pmDel = () => {
+  if (!pmDelArm) { pmDelArm = true; renderProjMenu(); return; }
+  const wasOpen = !$('#scrList').hidden && D.cur === pmId;
+  D.setlists = D.setlists.filter(x => x.id !== pmId);
+  if (D.cur === pmId) D.cur = D.setlists.length ? D.setlists[0].id : null;
+  save(); closeSheet(); renderHome(); toast('삭제했어요');
+  if (wasOpen) setTimeout(() => history.back(), 60);
 };
 
 /* ---------- 설정 ---------- */
@@ -1244,7 +1389,7 @@ function renderSettings() {
     <div class="sec-t">조작</div>
     <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전. 악보 화면에선 페달이 악보를 넘기고, 마지막에서 한 번 더 누르면 다음 곡.</p>
     <p class="note">분할 화면이나 작은 창으로 띄우면 버튼만 남은 작은 배치로 바뀌어요.</p>
-    <p class="note" style="color:var(--dim)">카운트인 v1.4 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v1.5 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -1279,8 +1424,8 @@ $('#fileIn').onchange = async e => {
 };
 
 /* ================= 시작 ================= */
-renderList();
-history.replaceState({s:'list'}, '');
+renderHome(); show('home');
+history.replaceState({s:'home'}, '');
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1') && !window.Capacitor) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
