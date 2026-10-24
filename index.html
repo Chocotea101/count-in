@@ -320,6 +320,16 @@ textarea.inp{min-height:120px;resize:vertical;line-height:1.5;font-size:15px}
 .cuecard{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);z-index:14;background:var(--text);color:var(--ink);font-size:clamp(40px,13vw,88px);font-weight:900;letter-spacing:-.02em;padding:16px 36px;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap;animation:cuepop .25s ease-out}
 @keyframes cuepop{from{transform:translate(-50%,-50%) scale(.7);opacity:.3}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
 @media (prefers-reduced-motion:reduce){.cuecard{animation:none}}
+#bCheck{display:none}
+.follow #bCheck{display:inline-flex;align-items:center;gap:6px;height:48px;padding:0 18px;border:1px solid var(--line);border-radius:14px;font-weight:700;font-size:15px}
+.chkcells{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
+.chkcell{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--mute)}
+.chkcell i{width:100%;aspect-ratio:1;border-radius:10px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:16px;font-weight:800;background:var(--raise);border:1.5px solid var(--line);color:var(--mute)}
+.chkcell.ok i{background:var(--text);border-color:var(--text);color:var(--ink)}
+.chkcell.early i,.chkcell.late i{border-color:var(--text);color:var(--text)}
+.chkhead{font-size:20px;font-weight:800;line-height:1.35}
+.chktip{font-size:15px;color:var(--text);line-height:1.55}
+.chkms{font-family:var(--f-mono);font-size:12px;color:var(--mute)}
 .librow{display:flex;align-items:center;gap:10px;background:var(--raise);border-radius:12px;padding:10px 12px}
 .librow .nm{flex:1;min-width:0}
 .librow .nm b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -440,6 +450,7 @@ textarea.inp{min-height:120px;resize:vertical;line-height:1.5;font-size:15px}
         <div class="bpmbox"><div class="big num" id="pBpm">0</div><small>BPM</small><button id="bSaveBpm" class="savebpm lockable" hidden>이 템포로 저장</button></div>
         <button class="rbtn lockable" id="bPlus" aria-label="BPM 올리기 (길게: 5씩)">+</button>
         <button id="bTap" class="tapbtn2 lockable" aria-label="두드려서 템포 맞추기"><span data-icon="tap"></span>맞추기</button>
+        <button id="bCheck" class="lockable" aria-label="8박 박 체크"><span data-icon="tap"></span>박 체크</button>
       </div>
       <div class="modes" id="modes" hidden></div>
       <div class="nextup"><span>다음 곡</span><b id="pNext"></b></div>
@@ -540,6 +551,7 @@ function fix(d) {
   d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), pdfs:Array.isArray(x.pdfs) ? x.pdfs.map(String) : [], marks:x.marks && typeof x.marks === 'object' ? x.marks : {}, ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true, cue:true}, x.ctl || {}), linked:x.linked || null, shareFrom:x.shareFrom || null, followUI:typeof x.followUI === 'boolean' ? x.followUI : !!(x.linked || x.shareFrom), songs:x.songs.map(s => newSong(s))}));
   d.setlists.forEach(x => { if (x.name === '예시 셋리스트') x.name = '예시 프로젝트'; });
   if (!d.setlists.some(x => x.id === d.cur)) d.cur = d.setlists.length ? d.setlists[0].id : null;
+  d.practice = Array.isArray(d.practice) ? d.practice.slice(-30) : [];
   d.library = (Array.isArray(d.library) ? d.library : []).filter(x => x && x.key).map(x => ({key:String(x.key), name:String(x.name || '악보'), pages:+x.pages || 0}));
   const lk = new Set(d.library.map(x => x.key));
   d.setlists.forEach(sl => {
@@ -1463,7 +1475,7 @@ requestAnimationFrame(frame);
 /* ================= 시트 ================= */
 let sheetKind = null, ignorePop = false;
 function openSheet(kind) { sheetKind = kind; $('#shw').hidden = false; history.pushState({s:'sheet'}, ''); }
-function closeSheet(fromPop) { if ($('#shw').hidden) return; if (sheetKind === 'calib') stopCal(); $('#shw').hidden = true; sheetKind = null; $('#sheet').innerHTML = ''; if (!fromPop) { ignorePop = true; history.back(); } }
+function closeSheet(fromPop) { if ($('#shw').hidden) return; if (sheetKind === 'calib') stopCal(); if (sheetKind === 'check') stopCheck(); $('#shw').hidden = true; sheetKind = null; $('#sheet').innerHTML = ''; if (!fromPop) { ignorePop = true; history.back(); } }
 $('#shw').addEventListener('click', e => { if (e.target.id === 'shw') { if (sheetKind === 'editor' && !edGuard()) return; closeSheet(); } });
 window.addEventListener('popstate', () => {
   if (ignorePop) { ignorePop = false; return; }
@@ -1850,7 +1862,7 @@ function renderSettings() {
     <p class="note">불러온 셋리스트는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v2.4 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v2.5 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -2249,7 +2261,7 @@ function startAtLeader(t0Local, bpm) {
   P.bpm = bpm; updBpm(); updPlayBtn();
 }
 function applyState(st) {
-  const p = linkedProj(); if (!p || !p.ctl.on) return;
+  const p = linkedProj(); if (!p || !p.ctl.on || sheetKind === 'check') return;
   if (st.i < 0 || st.i >= p.songs.length) { if (E.playing && D.cur === p.id && follows(p, song(), 'start')) stop(); return; }
   const target = p.songs[st.i];
   if (follows(p, target, 'song')) {
@@ -2580,6 +2592,92 @@ H.calStep = b => { CAL.off = clamp(CAL.off + +b.dataset.v, -300, 150); CAL.upd()
 // 저장·취소하면 설정 화면으로 돌아감 (같은 시트 안에서)
 H.calSave = () => { stopCal(); D.settings.visOffset = CAL.off; save(); sheetKind = 'settings'; renderSettings(); };
 H.calCancel = () => { stopCal(); sheetKind = 'settings'; renderSettings(); };
+
+/* ================= 8박 박 체크 (참여자용) ================= */
+// 준비 4박 뒤 8박 동안 두드림. 판정은 스피커 지연 보정(visOffset)을 빼고, 결과는 말로 격려 (ms는 '자세히'에서만, 기기 밖으로 안 나감)
+const CK = {on:false, t:0, raf:0, start:0, spb:.75, n:0, pre:4, len:8, taps:[], done:false, showMs:false, last:null};
+function stopCheck() { CK.on = false; clearInterval(CK.t); cancelAnimationFrame(CK.raf); }
+function openCheck() {
+  if (E.playing) stop();
+  ensureCtx();
+  const s = song(), bt = (E.ctx.outputLatency || 0) > .1 && !D.settings.visOffset;
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><span></span><h2>박 체크</h2><button class="txtbtn" data-act="close">닫기</button></div>
+  <div class="sh-body">
+    <p class="note">준비 4박 다음, 8박 동안 소리와 원에 맞춰 아래 칸을 두드려요. 점수가 아니라 감을 잡는 연습이에요. 결과는 이 기기에서 나만 봐요.</p>
+    ${bt ? `<div class="librow"><span class="nm"><b>블루투스로 듣고 있나요?</b><small>소리가 늦게 나오면 판정이 틀려져요. 먼저 한 번 맞춰 두세요.</small></span><button type="button" data-act="calOpen">맞추러 가기</button></div>` : ''}
+    <div class="calviz" style="height:170px"><canvas id="chkCv"></canvas><div class="vizlbl" id="chkLbl" style="font-size:15px;color:var(--text)"></div></div>
+    <div class="caltap" id="chkTap" style="height:140px"><b style="font-size:17px" id="chkTapL">시작을 누르세요</b><span class="num" id="chkCnt" style="color:var(--mute)"></span></div>
+    <button type="button" class="go" data-act="chkStart" id="chkGo">시작 · ${P.bpm} BPM</button>
+    <div id="chkRes" class="sh-body" style="gap:12px"></div>
+  </div>`;
+  openSheet('check');
+  $('#chkTap').addEventListener('pointerdown', e => { e.preventDefault(); chkTap(e.timeStamp || performance.now()); });
+  drawCheck(true);
+}
+function drawCheck(idle) {
+  const cv = $('#chkCv'); if (!cv) return;
+  const b = idle ? 0 : (outNow() + FRAME_AHEAD + D.settings.visOffset / 1000 - CK.start) / CK.spb;
+  draw(cv, 'approach', b < 0 ? 0 : b, 4, {idle:idle || b < 0, subs:1, loud:true, counting:b < CK.pre, targets:[true, true, true, true]});
+  const lbl = $('#chkLbl');
+  if (lbl) lbl.textContent = idle || b < 0 ? '' : b < CK.pre ? `준비 ${CK.pre - Math.floor(b)}` : b < CK.pre + CK.len ? `${Math.floor(b) - CK.pre + 1} / ${CK.len}` : '';
+}
+H.chkStart = () => {
+  if (CK.on) return;
+  ensureCtx();
+  CK.spb = 60 / P.bpm; CK.start = E.ctx.currentTime + .4; CK.n = 0; CK.taps = []; CK.done = false; CK.on = true; CK.showMs = false;
+  $('#chkRes').innerHTML = ''; $('#chkGo').disabled = true; $('#chkTapL').textContent = '원이 닿을 때 두드리세요'; $('#chkCnt').textContent = '';
+  const total = CK.pre + CK.len;
+  CK.t = setInterval(() => {
+    if (!CK.on) return;
+    while (CK.n < total && CK.start + CK.n * CK.spb < E.ctx.currentTime + .12) {
+      const t = CK.start + CK.n * CK.spb; if (t >= E.ctx.currentTime - .005) click(t, CK.n % 4 === 0 ? 2 : 1); CK.n++;
+    }
+    if (CK.n >= total && E.ctx.currentTime > CK.start + total * CK.spb + .4) { stopCheck(); finishCheck(); }
+  }, 25);
+  const fr = () => { if (!CK.on) return; drawCheck(false); CK.raf = requestAnimationFrame(fr); };
+  CK.raf = requestAnimationFrame(fr);
+};
+function chkTap(t) {
+  if (!CK.on) return;
+  const a = $('#chkTap'); a.classList.add('hit'); setTimeout(() => a.classList.remove('hit'), 90);
+  // 두드린 순간을 '귀에 들린 박'과 같은 시계로: 스피커 지연(visOffset<0이면 소리가 늦음)만큼 당김
+  CK.taps.push(outNow() - (performance.now() - t) / 1000 + D.settings.visOffset / 1000);
+  const n = CK.taps.filter(x => x > CK.start + (CK.pre - .5) * CK.spb).length;
+  $('#chkCnt').textContent = n ? `${Math.min(n, CK.len)} / ${CK.len}` : '';
+}
+function finishCheck() {
+  const tol = Math.max(.045, CK.spb * .09), used = new Set(), cells = [];
+  for (let j = 0; j < CK.len; j++) {
+    const bt = CK.start + (CK.pre + j) * CK.spb;
+    let best = -1, bd = 1e9;
+    CK.taps.forEach((x, i) => { const d = Math.abs(x - bt); if (!used.has(i) && d < CK.spb * .5 && d < bd) { bd = d; best = i; } });
+    if (best < 0) { cells.push({c:'miss'}); continue; }
+    used.add(best);
+    const e = CK.taps[best] - bt;
+    cells.push({c:Math.abs(e) <= tol ? 'ok' : e < 0 ? 'early' : 'late', e});
+  }
+  const ok = cells.filter(c => c.c === 'ok').length, hits = cells.filter(c => c.c !== 'miss');
+  const early = cells.filter(c => c.c === 'early').length, late = cells.filter(c => c.c === 'late').length, miss = cells.filter(c => c.c === 'miss').length;
+  const mean = hits.length ? hits.reduce((a, c) => a + c.e, 0) / hits.length : 0;
+  const prev = D.practice.length ? D.practice[D.practice.length - 1] : null;
+  D.practice.push({at:new Date().toISOString().slice(0, 10), bpm:P.bpm, ok, song:(song() || {}).title || ''}); save();
+  let head, tip;
+  if (ok >= 6) { head = `좋아요! 8박 중 ${ok}박이 딱 맞았어요`; tip = '이 느낌 그대로 들어가면 돼요. 원보다 소리를 더 믿어 봐도 좋아요.'; }
+  else if (ok >= 3) { head = `${ok}박이 딱 맞았어요`; tip = early > late ? '조금 서두르는 편이에요. 원이 안쪽 원에 닿을 때까지 한 템포 기다렸다 쳐 보세요.' : late > early ? '살짝 늦게 따라오는 편이에요. 원이 다가오는 걸 보면서 미리 손을 준비해 두세요.' : '박을 잘 따라오고 있어요. 한 번 더 하면 더 맞을 거예요.'; }
+  else { head = '괜찮아요, 처음엔 다 그래요'; tip = miss >= 4 ? '두드리는 걸 잊어도 괜찮아요. 소리보다 원이 닿는 순간만 보고 쳐 보세요.' : late >= early + 2 ? '소리를 듣고 따라 치느라 조금씩 늦어요. 원이 다가오는 걸 보면서 닿기 직전에 손을 내려 보세요.' : early >= late + 2 ? '마음이 앞서서 조금씩 빨라요. 원이 안쪽 원에 완전히 닿을 때까지 기다려 보세요.' : '소리를 따라가기보다 원이 닿는 순간에 맞춰 보세요. 몇 번 하면 금방 잡혀요.'; }
+  const better = prev && ok > prev.ok ? `<p class="chktip" style="color:var(--cue)">지난번(${prev.ok}박)보다 ${ok - prev.ok}박 더 맞았어요.</p>` : '';
+  const mark = {ok:['✓', '맞음'], early:['←', '빠름'], late:['→', '느림'], miss:['·', '놓침']};
+  $('#chkRes').innerHTML = `<div class="chkhead">${head}</div>
+    <div class="chkcells">${cells.map((c, i) => `<div class="chkcell ${c.c}"><i>${mark[c.c][0]}</i>${i + 1}</div>`).join('')}</div>
+    <p class="chktip">${tip}</p>${better}
+    <div class="row2"><button type="button" class="pill" data-act="chkMs" style="flex:0 0 auto">자세히</button><span></span></div>
+    <div class="chkms" id="chkMs" hidden>${cells.map((c, i) => `${i + 1}박 ${c.c === 'miss' ? '–' : (c.e > 0 ? '+' : '') + Math.round(c.e * 1000) + 'ms'}`).join(' · ')}<br>평균 ${mean > 0 ? '+' : ''}${Math.round(mean * 1000)}ms (−는 빠름, +는 느림) · 맞음 기준 ±${Math.round(tol * 1000)}ms${D.settings.visOffset ? ` · 스피커 보정 ${D.settings.visOffset}ms 반영` : ''}</div>`;
+  $('#chkGo').disabled = false; $('#chkGo').textContent = '한 번 더'; $('#chkTapL').textContent = '한 번 더 하려면 아래 버튼'; $('#chkCnt').textContent = '';
+  drawCheck(true);
+}
+H.chkMs = () => { const m = $('#chkMs'); if (m) m.hidden = !m.hidden; };
+$('#bCheck').onclick = openCheck;
 
 /* ================= 키보드 ================= */
 // 키보드가 화면을 줄여 주지 않는 환경(아이폰 사파리, 일부 안드로이드 앱)에서 키보드 높이만큼 창을 올림
