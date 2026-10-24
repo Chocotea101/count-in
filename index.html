@@ -99,6 +99,20 @@ li.dragging{position:relative;z-index:5;box-shadow:0 14px 34px rgba(0,0,0,.55);o
 .pages{display:flex;flex-direction:column;align-items:center;gap:8px;padding-bottom:40vh}
 .pg{display:flex;align-items:center;justify-content:center;width:100%}
 .pg canvas{display:block;background:#fff}
+.pgin{position:relative;flex:none}
+.pgin canvas.mk{position:absolute;inset:0;width:100%;height:100%;background:none;pointer-events:none}
+.marking .sheetbox{touch-action:none;overflow:hidden}
+.marking .pgin canvas.mk{pointer-events:auto;touch-action:none;cursor:crosshair}
+.marking .pgnav,.marking .barno{display:none}
+.mkbar{position:absolute;left:0;right:0;top:var(--st);z-index:13;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px max(10px,var(--sr)) 8px max(10px,var(--sl));background:rgba(15,18,23,.95);border-bottom:1px solid var(--line)}
+.mkbar button{height:40px;min-width:40px;border-radius:10px;border:1px solid var(--line);font-size:16px;padding:0 10px}
+.mkbar button[aria-pressed="true"]{border-color:var(--beat);background:var(--raise)}
+.mkbar .done{margin-left:auto;background:var(--beat);color:var(--ink);border-color:var(--beat);font-weight:700}
+.mkbar .sw-c{width:40px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.mkbar .sw-c i{width:20px;height:20px;border-radius:50%;display:block}
+.txtdlg{position:fixed;left:max(12px,var(--sl));right:max(12px,var(--sr));top:calc(var(--st) + 64px);z-index:26;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 50px rgba(0,0,0,.5);max-width:520px;margin:0 auto}
+.txtdlg .row2 button{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 0}
+.busy{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;color:var(--text);font-size:15px;text-align:center;padding:24px}
 /* 쪽 맞춤: 한 화면에 한 쪽(가로면 두 쪽), 옆으로 밀어 넘김 */
 .sheetbox.fitpage{overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;touch-action:pan-x pinch-zoom}
 .sheetbox.fitpage{scrollbar-width:none}
@@ -143,7 +157,8 @@ li.dragging{position:relative;z-index:5;box-shadow:0 14px 34px rgba(0,0,0,.55);o
 .edgecv{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:15}
 #bSheet{font-size:16px}
 #bSheet[aria-pressed="true"]{border-color:var(--cue);color:var(--cue)}
-.sheeton .modes,.sheeton .nextup,.sheeton #bTap,.sheeton .memo{display:none!important}
+.sheeton .modes,.sheeton .nextup,.sheeton .memo{display:none!important}
+#bMark{font-size:16px}
 .viz canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .vizlbl{position:absolute;left:0;right:0;top:12px;text-align:center;font-family:var(--f-mono);font-size:12px;color:var(--mute);letter-spacing:.08em;pointer-events:none}
 .dots{display:flex;justify-content:center;gap:6px;padding:12px 0 2px}
@@ -296,7 +311,7 @@ input[type=range]{width:100%;accent-color:var(--beat)}
 <section id="scrHome" class="scr">
   <header class="hh">
     <div class="brand"><i></i>카운트인</div>
-    <button id="bSettingsH" class="icbtn" aria-label="설정">⚙︎</button>
+    <div class="lh-r"><button id="bJoin" class="pill" aria-label="코드로 함께 연주 참여">🔗 참여</button><button id="bSettingsH" class="icbtn" aria-label="설정">⚙︎</button></div>
   </header>
   <div class="hsub">프로젝트</div>
   <ul id="projList" class="pl"></ul>
@@ -327,6 +342,7 @@ input[type=range]{width:100%;accent-color:var(--beat)}
   <header class="ph">
     <button id="bBack" class="back lockable">‹ 목록</button>
     <button class="ph-mid lockable" id="bTitle" aria-label="이 곡 편집"><div class="t" id="pTitle"></div><div class="sub num" id="pSub"></div></button>
+    <button id="bMark" class="icbtn lockable" aria-label="악보에 표기하기" hidden>✏️</button>
     <button id="pgFit" class="icbtn lockable" aria-label="악보 맞춤 바꾸기" hidden>쪽</button>
     <button id="bSheet" class="icbtn lockable" aria-pressed="false" aria-label="악보 보기" hidden>𝄞</button>
     <button id="bLock" class="icbtn" aria-pressed="false" aria-label="화면 잠금">🔓</button>
@@ -337,6 +353,16 @@ input[type=range]{width:100%;accent-color:var(--beat)}
       <div class="stage">
         <div class="viz" id="viz"><canvas id="cv"></canvas><div class="vizlbl" id="vizLbl"></div></div>
         <div class="sheetbox" id="sheetBox" hidden><div class="pages" id="pages"></div></div>
+        <div class="mkbar" id="mkBar" hidden>
+          <button data-tool="pen" data-c="#E5484D" class="sw-c" aria-label="빨간 펜"><i style="background:#E5484D"></i></button>
+          <button data-tool="pen" data-c="#2F6FED" class="sw-c" aria-label="파란 펜"><i style="background:#2F6FED"></i></button>
+          <button data-tool="pen" data-c="#1A1A1A" class="sw-c" aria-label="검은 펜"><i style="background:#1A1A1A;box-shadow:0 0 0 1px #666"></i></button>
+          <button data-tool="hl" aria-label="형광펜">🖍</button>
+          <button data-tool="text" aria-label="글 달기">T</button>
+          <button data-tool="erase" aria-label="지우개">⌫</button>
+          <button id="mkUndo" aria-label="실행 취소">↶</button>
+          <button id="mkDone" class="done">완료</button>
+        </div>
         <div class="barno" id="barNo" hidden>
           <button id="barMinus" class="lockable" aria-label="마디 하나 빼기">−</button>
           <div class="bv"><small id="barL">마디</small><b class="num" id="barV">1</b></div>
@@ -358,7 +384,7 @@ input[type=range]{width:100%;accent-color:var(--beat)}
       <div class="nextup"><span>다음 곡</span><b id="pNext"></b></div>
       <div class="ctrl">
         <button id="bPrev" class="lockable" aria-label="이전 곡"><span class="ic">⏮</span>이전</button>
-        <button id="bTap" class="lockable" aria-label="탭 템포"><span class="ic">✋</span>탭</button>
+        <button id="bTap" class="lockable" aria-label="두드려서 템포 맞추기"><span class="ic">✋</span>맞추기</button>
         <button class="main" id="bPlay" aria-label="재생">▶</button>
         <button class="snd lockable" id="bSnd" aria-pressed="true" aria-label="소리"><span class="ic">🔊</span><span id="sndLbl">소리</span></button>
         <button id="bNext" aria-label="다음 곡"><span class="ic">⏭</span>다음</button>
@@ -380,6 +406,11 @@ input[type=range]{width:100%;accent-color:var(--beat)}
     <div class="tpad-hint">4번 이상 두드리면 정확해져요 · 2.5초 쉬면 처음부터</div>
   </div>
 </div>
+<div id="txtDlg" class="txtdlg" hidden>
+  <input id="txtIn" class="inp" type="text" maxlength="60" placeholder="악보에 달 글 (예: 여기서 브레이크)" autocomplete="off">
+  <div class="row2"><button id="txtDel" class="danger">지우기</button><button id="txtCancel">취소</button><button id="txtOk" style="background:var(--beat);color:var(--ink);font-weight:700;border-color:var(--beat)">확인</button></div>
+</div>
+<div id="busy" class="busy" hidden></div>
 <div id="toast" class="toast" hidden></div>
 <input type="file" id="fileIn" accept="application/json,.json" hidden>
 
@@ -393,11 +424,11 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /* ================= 데이터 ================= */
 const KEY = 'countin.v1';
-const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true, visOffset:0, songFlip:2};
+const DEF_SET = {visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true, visOffset:0, songFlip:2, myName:'', devId:''};
 const VIS = [['pulse','원'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자'],['edge','테두리']];
 const SOUNDS = [['wood','우드블록'],['beep','비프'],['cow','카우벨'],['stick','사이드스틱']];
 function newSong(o = {}) {
-  return Object.assign({id:uid(), title:'', bpm:100, num:4, den:4, pulse:'eighth', sub:'none', countIn:2, muteAfter:false, accent:true, visual:null, memo:'', sheet:null}, o);
+  return Object.assign({id:uid(), title:'', bpm:100, num:4, den:4, pulse:'eighth', sub:'none', countIn:2, muteAfter:false, accent:true, visual:null, memo:'', sheet:null, follow:null}, o);
 }
 function seed() {
   const s = {id:uid(), name:'예시 프로젝트', songs:[
@@ -412,7 +443,7 @@ function seed() {
 // 곡(sheet)은 {items:[{key, page}]}로 여러 PDF의 쪽을 순서대로 가리킴 (page 0 = 그 PDF 전체)
 function fix(d) {
   d.settings = Object.assign({...DEF_SET}, d.settings || {});
-  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), pdfs:Array.isArray(x.pdfs) ? x.pdfs.map(String) : [], songs:x.songs.map(s => newSong(s))}));
+  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:String(x.name || '셋리스트'), pdfs:Array.isArray(x.pdfs) ? x.pdfs.map(String) : [], marks:x.marks && typeof x.marks === 'object' ? x.marks : {}, ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true}, x.ctl || {}), linked:x.linked || null, songs:x.songs.map(s => newSong(s))}));
   d.setlists.forEach(x => { if (x.name === '예시 셋리스트') x.name = '예시 프로젝트'; });
   if (!d.setlists.some(x => x.id === d.cur)) d.cur = d.setlists.length ? d.setlists[0].id : null;
   d.library = (Array.isArray(d.library) ? d.library : []).filter(x => x && x.key).map(x => ({key:String(x.key), name:String(x.name || '악보'), pages:+x.pages || 0}));
@@ -434,8 +465,9 @@ function fix(d) {
 }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.setlists) return fix(d); } catch (e) {} return fix(seed()); }
 let D = load();
-function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { toast('저장 공간이 부족해서 저장하지 못했어요'); } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { toast('저장 공간이 부족해서 저장하지 못했어요'); } if (window.__syncReady) syncProjChanged(); }
 save();
+if (!D.settings.devId) { D.settings.devId = uid(); save(); }
 const curSL = () => D.setlists.find(x => x.id === D.cur) || D.setlists[0];
 
 const isDotted = s => s.den === 8 && s.pulse === 'dotted' && s.num % 3 === 0;
@@ -532,7 +564,7 @@ function tapHit(t) {
 $('#tpArea').addEventListener('pointerdown', e => { e.preventDefault(); tapHit(e.timeStamp || performance.now()); });
 $('#tpArea').addEventListener('contextmenu', e => e.preventDefault());
 $('#tpCancel').onclick = () => closeTapPad();
-$('#tpApply').onclick = () => { if (TP.res && TP.cb) TP.cb(TP.res.bpm); closeTapPad(); };
+$('#tpApply').onclick = () => { if (TP.res && TP.cb) TP.cb(TP.res.bpm, TP.ts[TP.ts.length - 1]); closeTapPad(); };
 // 페달·키보드로도 두드리기 (스페이스·엔터·T·→·PageDown)
 document.addEventListener('keydown', e => {
   if ($('#tpad').hidden) return;
@@ -604,10 +636,11 @@ catch (e) { setInterval(schedule, 25); }
 function start() {
   if (!song()) return;
   ensureCtx();
-  E.spb = 60 / P.bpm; E.start = E.ctx.currentTime + .15; E.n = 0; E.sub = 0; E.playing = true; P.barOff = 0;
-  updPlayBtn();
+  const lead = window.__syncReady && SY.role === 'leader' && SY.conns.length ? .6 : .15;
+  E.spb = 60 / P.bpm; E.start = E.ctx.currentTime + lead; E.n = 0; E.sub = 0; E.playing = true; P.barOff = 0;
+  updPlayBtn(); onTiming();
 }
-function stop() { E.playing = false; updPlayBtn(); }
+function stop() { E.playing = false; updPlayBtn(); onTiming(); }
 // 지금 스피커로 나오고 있는 소리의 시각(오디오 시계 기준). getOutputTimestamp로 끊김 없이 이어서 계산
 function outNow() {
   const c = E.ctx;
@@ -788,8 +821,8 @@ async function showSheet() {
     for (const it of s.sheet.items) {
       try {
         const doc = await getDoc(it.key);
-        if (it.page) { if (it.page <= doc.numPages) list.push({doc, p:it.page}); }
-        else for (let p = 1; p <= doc.numPages; p++) list.push({doc, p});
+        if (it.page) { if (it.page <= doc.numPages) list.push({doc, p:it.page, key:it.key}); }
+        else for (let p = 1; p <= doc.numPages; p++) list.push({doc, p, key:it.key});
       } catch (e) { missing++; }
     }
     if (!song() || !song().sheet || sheetSig(song()) !== sig) return;
@@ -825,10 +858,12 @@ async function renderPages() {
     const vp = pg.getViewport({scale:sc * dpr});
     const wrap = document.createElement('div'); wrap.className = 'pg';
     if (horiz) { wrap.style.width = pw + 'px'; if (idx % SV.per === 0) wrap.classList.add('snap'); if (SV.per === 2) wrap.style.justifyContent = idx % 2 ? 'flex-start' : 'flex-end'; }
-    const c = document.createElement('canvas');
-    c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
-    c.style.width = Math.floor(v1.width * sc) + 'px'; c.style.height = Math.floor(v1.height * sc) + 'px';
-    wrap.appendChild(c); frag.push([pg, c, vp]);
+    const c = document.createElement('canvas'), inner = document.createElement('div'), mk = document.createElement('canvas');
+    c.width = mk.width = Math.floor(vp.width); c.height = mk.height = Math.floor(vp.height);
+    inner.className = 'pgin'; inner.style.width = c.style.width = Math.floor(v1.width * sc) + 'px'; inner.style.height = c.style.height = Math.floor(v1.height * sc) + 'px';
+    mk.className = 'mk'; mk.dataset.mk = SV.list[idx].key + ':' + SV.list[idx].p;
+    inner.append(c, mk); wrap.appendChild(inner); frag.push([pg, c, vp]);
+    drawMarks(mk, (curSL().marks || {})[mk.dataset.mk]);
     if (i === 1) pages.innerHTML = '';
     pages.appendChild(wrap);
   }
@@ -854,6 +889,15 @@ function updPg() {
     wraps.forEach((w, i) => { if (w.offsetTop <= top) cur = i + 1; });
     $('#pgNo').textContent = `${cur} / ${wraps.length}`;
   }
+  SV.cur = cur - 1;
+  if (window.__syncReady) syncPage();
+}
+// 악보에서 k번째(0부터) 쪽으로 이동
+function gotoPageIdx(k) {
+  const box = $('#sheetBox'), wraps = [...$('#pages').querySelectorAll('.pg')];
+  if (!wraps[k]) return;
+  if (SV.fit === 'page') box.scrollTo({left:Math.floor(k / (SV.per || 1)) * box.clientWidth, behavior:'smooth'});
+  else box.scrollTo({top:wraps[k].offsetTop, behavior:'smooth'});
 }
 // 악보 넘기기 (쪽 맞춤은 옆으로 한 화면, 폭 맞춤은 아래로 85%). 맨 끝이면 false
 function turnPage(d) {
@@ -903,7 +947,7 @@ function kickUi() { if ($('#scrPlay').classList.contains('ui')) setUi(true); }
   const b = $('#sheetBox');
   let x0 = null, y0 = 0, t0 = 0, startEdge = 0;
   const atEnd = () => SV.fit === 'page' ? (b.scrollLeft >= b.scrollWidth - b.clientWidth - 4 ? 1 : 0) - (b.scrollLeft <= 4 ? 1 : 0) : 0;
-  const down = (x, y) => { x0 = x; y0 = y; t0 = performance.now(); startEdge = atEnd(); };
+  const down = (x, y) => { if (P.markOn) { x0 = null; return; } x0 = x; y0 = y; t0 = performance.now(); startEdge = atEnd(); };
   const up = (x, y) => {
     if (x0 === null) return;
     const dx = x - x0, dy = y - y0, dt = performance.now() - t0; x0 = null;
@@ -921,6 +965,8 @@ function kickUi() { if ($('#scrPlay').classList.contains('ui')) setUi(true); }
 })();
 let rsT;
 new ResizeObserver(() => { if (!P.sheetOn) return; clearTimeout(rsT); rsT = setTimeout(renderPages, 200); }).observe($('#sheetBox'));
+
+function onTiming() { if (window.__syncReady) syncSendState(); }
 
 /* ================= 꾹 눌러 끌어서 순서 바꾸기 ================= */
 // li[data-i]를 0.38초 누르고 있으면 들려서 따라오고, 놓으면 onDrop(새 순서의 원래 번호 배열)
@@ -994,7 +1040,7 @@ function renderHome() {
     const bpms = p.songs.slice(0, 6).map(s => s.bpm).join(' · ') + (n > 6 ? ' …' : '');
     return `<li data-i="${i}">
       <button class="pcard" data-act="open"><span class="pn">${esc(p.name)}</span>
-        <span class="pm">${n ? n + '곡' : '곡 없음'}${sh ? ` · 𝄞 PDF ${sh}개` : ''}</span>
+        <span class="pm">${syncTag(p)}${n ? n + '곡' : '곡 없음'}${sh ? ` · 𝄞 PDF ${sh}개` : ''}</span>
         ${n ? `<span class="bpms num">${bpms}<small>BPM</small></span>` : ''}</button>
       <div class="pact"><button class="pplay" data-act="go" aria-label="${esc(p.name)} 1번부터 시작" ${n ? '' : 'disabled'}>▶</button><button class="more" data-act="menu" aria-label="${esc(p.name)} 관리">⋯</button></div>
     </li>`;
@@ -1043,7 +1089,7 @@ $('#slPick').onclick = () => openProjMenu(D.cur);
 $('#bProjMenu').onclick = () => openProjMenu(D.cur);
 
 /* ================= 플레이 화면 ================= */
-const P = {i:0, bpm:100, locked:false, barOff:0, sheetOn:false};
+const P = {i:0, bpm:100, locked:false, barOff:0, sheetOn:false, markOn:false};
 const song = () => curSL().songs[P.i];
 const effMode = s => s.visual || D.settings.visual;
 function show(name) { $('#scrHome').hidden = name !== 'home'; $('#scrList').hidden = name !== 'list'; $('#scrPlay').hidden = name !== 'play'; }
@@ -1053,12 +1099,13 @@ function openPlay(i, autoplay) {
   requestWake();
   if (autoplay) start();
 }
-function closePlay() { stop(); setLock(false); show('list'); renderList(); releaseWake(); }
+function closePlay() { if (P.markOn) setMarking(false); stop(); setLock(false); show('list'); renderList(); releaseWake(); onTiming(); }
 function loadSong() { stop(); const s = song(); if (!s) return; P.bpm = s.bpm; P.barOff = 0; P.sheetOn = !!s.sheet && D.settings.sheetAuto; renderPlay(); }
 function applySheet() {
   const s = song(), on = P.sheetOn && !!(s && s.sheet);
   $('#scrPlay').classList.toggle('sheeton', on);
-  $('#viz').hidden = on; $('#sheetBox').hidden = !on; $('#pgNav').hidden = !on; $('#pgFit').hidden = !on;
+  $('#viz').hidden = on; $('#sheetBox').hidden = !on; $('#pgNav').hidden = !on; $('#pgFit').hidden = !on; $('#bMark').hidden = !on;
+  if (!on && P.markOn) setMarking(false);
   $('#bSheet').hidden = !(s && s.sheet); $('#bSheet').setAttribute('aria-pressed', on);
   $('#scrPlay').classList.toggle('nobtns', !D.settings.pgBtns);
   if (!on) setUi(false);
@@ -1067,7 +1114,7 @@ function applySheet() {
 function renderPlay() {
   const s = song(), list = curSL().songs; if (!s) return;
   $('#pTitle').textContent = s.title || '제목 없음';
-  $('#pSub').textContent = `${P.i + 1} / ${list.length} · ${sigL(s)}${SUBL[s.sub] ? ' · ' + SUBL[s.sub] : ''}${s.countIn ? ' · 카운트 ' + s.countIn : ''}${s.muteAfter ? ' · 이후 무음' : ''}`;
+  $('#pSub').textContent = `${syncTag(curSL())}${P.i + 1} / ${list.length} · ${sigL(s)}${SUBL[s.sub] ? ' · ' + SUBL[s.sub] : ''}${s.countIn ? ' · 카운트 ' + s.countIn : ''}${s.muteAfter ? ' · 이후 무음' : ''}`;
   $('#pMemo').hidden = !s.memo; $('#pMemo').textContent = s.memo;
   const nx = list[P.i + 1];
   $('#pNext').textContent = nx ? `${nx.title || '제목 없음'} · ${nx.bpm}` : '마지막 곡이에요';
@@ -1087,7 +1134,17 @@ function updPlayBtn() { const b = $('#bPlay'); b.textContent = E.playing ? '❚�
 function setBpm(v) {
   v = clamp(Math.round(v), 20, 300);
   if (E.playing && E.ctx) { const now = E.ctx.currentTime, b = (now - E.start) / E.spb; E.spb = 60 / v; E.start = now - b * E.spb; }
-  P.bpm = v; updBpm();
+  P.bpm = v; updBpm(); onTiming();
+}
+// 연주 중 두드려서 맞추기: 새 템포로 바꾸고, 마지막으로 두드린 순간이 박이 되도록 위상까지 맞춤 (마디 번호는 이어감)
+function retime(v, tapPerf) {
+  v = clamp(Math.round(v), 20, 300);
+  if (!E.playing || !E.ctx) { setBpm(v); return; }
+  const tapOut = outNow() - (performance.now() - tapPerf) / 1000;
+  const bi = Math.round((tapOut - E.start) / E.spb);
+  E.spb = 60 / v; E.start = tapOut - bi * E.spb;
+  E.n = Math.max(0, Math.ceil((E.ctx.currentTime + .01 - E.start) / E.spb)); E.sub = 0;
+  P.bpm = v; updBpm(); onTiming();
 }
 function go(i) {
   const list = curSL().songs; if (i < 0 || i >= list.length) return;
@@ -1110,7 +1167,10 @@ $('#modes').addEventListener('click', e => {
   const s = song(); if (s.visual) s.visual = b.dataset.m; else D.settings.visual = b.dataset.m;
   save(); $('#modes').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
 });
-$('#bTap').onclick = () => openTapPad(P.bpm, v => { setBpm(v); toast(`${v} BPM · 저장하려면 '이 템포로 저장'`); });
+$('#bTap').onclick = () => openTapPad(P.bpm, (v, tapT) => {
+  if (E.playing) { retime(v, tapT); toast(`${v} BPM으로 맞췄어요 · 마지막으로 두드린 박에 맞춤`); }
+  else { setBpm(v); toast(`${v} BPM · 저장하려면 '이 템포로 저장'`); }
+});
 function holdBtn(el, step) {
   let t1, t2, fired = false;
   const end = () => { clearTimeout(t1); clearInterval(t2); };
@@ -1293,6 +1353,7 @@ function renderEditor() {
     ${tgl('muteAfter', '카운트인 끝나면 소리 끄기', d.muteAfter, '시작 템포는 귀로, 연주 중엔 화면으로')}
     ${tgl('accent', '첫 박 강조', d.accent)}
     ${seg('visual', '이 곡 비주얼', [['', '기본'], ...VIS], d.visual || '')}
+    ${seg('follow', '함께 연주할 때 이 곡은 리더를', [['', '프로젝트 설정대로'], ['on', '따라가기'], ['off', '따라가지 않기']], d.follow || '')}
     <label class="fld"><span>메모 (재생 화면에 표시)</span><input id="fMemo" type="text" value="${esc(d.memo)}" placeholder="예: 브릿지 하프타임" maxlength="40" autocomplete="off"></label>
     ${(() => { const sh = d.sheet;
       const txt = sh ? `𝄞 ${esc(sheetLabel(sh.items, true))}` : '없음';
@@ -1312,6 +1373,7 @@ H.seg = b => {
     else { const [n, de] = v.split('/').map(Number); draft.num = n; draft.den = de; draft._custom = false; if (de === 8) { draft.pulse = 'dotted'; if (draft.sub === 'none') draft.sub = '3'; } }
   } else if (k === 'countIn') draft.countIn = +v;
   else if (k === 'visual') draft.visual = v || null;
+  else if (k === 'follow') draft.follow = v || null;
   else draft[k] = v;
   const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st;
 };
@@ -1469,7 +1531,7 @@ function openNewProj() {
 }
 H.mkProj = () => {
   const n = ($('#npName').value || '').trim() || '새 프로젝트';
-  const x = {id:uid(), name:n, pdfs:[], songs:[]}; D.setlists.push(x); save();
+  const x = {id:uid(), name:n, pdfs:[], marks:{}, ctl:{on:true, start:true, song:true, page:true, bpm:true}, songs:[]}; D.setlists.push(x); save();
   closeSheet(); renderHome();
   setTimeout(() => { openProject(x.id); toast(`"${n}" 만들었어요 · ＋로 곡을 넣으세요`); }, 60);
 };
@@ -1491,6 +1553,9 @@ function renderProjMenu() {
       ${D.library.some(x => !p.pdfs.includes(x.key)) ? `<button type="button" class="pill" style="flex:0 0 auto" data-act="pmImp" aria-pressed="${pmImp}">다른 프로젝트 악보 가져오기</button>` : ''}
     </div>
     ${pmImp ? `<div class="slrows">${D.library.filter(x => !p.pdfs.includes(x.key)).map(x => `<button type="button" class="slrow" data-act="pmImpOne" data-k="${esc(x.key)}"><span>𝄞 ${esc(x.name)}<small style="display:block;color:var(--mute);font-size:12px">${esc(projsWith(x.key).map(q => q.name).join(', ') || '프로젝트 없음')}</small></span><span>${x.pages ? x.pages + '쪽 · ' : ''}가져오기</span></button>`).join('')}</div>` : ''}
+    ${syncSection(p)}
+    <button type="button" class="pill" data-act="pmExport" style="align-self:flex-start">📄 악보 PDF로 내보내기 (표기 포함)</button>
+    <p class="note">표지(곡 목록·BPM) + 곡 순서대로 고른 쪽을 한 파일로 합쳐요. 곡 첫 쪽엔 제목·BPM 표시가 붙어요.</p>
     <div class="sh-actions"><button type="button" data-act="pmDup">복제</button><button type="button" class="danger" data-act="pmDel">${pmDelArm ? ([p.songs.length ? `${p.songs.length}곡` : '', p.pdfs.filter(k => projsWith(k).length === 1).length ? `PDF ${p.pdfs.filter(k => projsWith(k).length === 1).length}개` : ''].filter(Boolean).join('·') || '프로젝트') + '도 지워져요 · 삭제' : '삭제'}</button></div>
   </div>`;
 }
@@ -1513,7 +1578,7 @@ H.pmPdfOut = b => {
 H.pmRen = () => { const n = $('#pmName').value.trim(); if (!n) return; D.setlists.find(x => x.id === pmId).name = n; save(); refreshLists(); renderProjMenu(); toast('이름을 바꿨어요'); };
 H.pmDup = () => {
   const i = D.setlists.findIndex(x => x.id === pmId), c = D.setlists[i];
-  D.setlists.splice(i + 1, 0, {id:uid(), name:c.name + ' 복사', pdfs:[...c.pdfs], songs:c.songs.map(s => ({...s, id:uid(), sheet:s.sheet ? {items:s.sheet.items.map(it => ({...it}))} : null}))});
+  D.setlists.splice(i + 1, 0, {id:uid(), name:c.name + ' 복사', pdfs:[...c.pdfs], marks:JSON.parse(JSON.stringify(c.marks || {})), ctl:{...c.ctl}, songs:c.songs.map(s => ({...s, id:uid(), sheet:s.sheet ? {items:s.sheet.items.map(it => ({...it}))} : null}))});
   save(); refreshLists(); closeSheet(); toast('복제했어요');
 };
 H.pmDel = () => {
@@ -1568,7 +1633,7 @@ function renderSettings() {
     <div class="sec-t">조작</div>
     <p class="note">재생 화면에서 좌우로 밀면 곡 이동 · ± 길게 누르면 5씩 · 블루투스 페달/키보드: 스페이스=재생, →/PageDown=다음, ←/PageUp=이전. 악보 화면에선 페달이 악보를 넘기고, 마지막에서 한 번 더 누르면 다음 곡.</p>
     <p class="note">분할 화면이나 작은 창으로 띄우면 버튼만 남은 작은 배치로 바뀌어요.</p>
-    <p class="note" style="color:var(--dim)">카운트인 v1.9 · 데이터는 이 기기에만 저장돼요</p>
+    <p class="note" style="color:var(--dim)">카운트인 v2.0 · 데이터는 이 기기에만 저장돼요</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -1583,13 +1648,7 @@ function setSeg(k, v, b) {
 H.preview = () => { ensureCtx(); const t = E.ctx.currentTime + .05; for (let j = 0; j < 4; j++) click(t + j * .5, j === 0 ? 2 : 1); };
 H.exportD = async () => {
   const d = new Date(), name = `countin-backup-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
-  const blob = new Blob([JSON.stringify(D, null, 1)], {type:'application/json'});
-  try {
-    const f = new File([blob], name, {type:'application/json'});
-    if (navigator.canShare && navigator.canShare({files:[f]})) { await navigator.share({files:[f], title:'카운트인 백업'}); return; }
-  } catch (e) { if (e && e.name === 'AbortError') return; }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('백업 파일을 저장했어요');
+  await saveFile(new Blob([JSON.stringify(D, null, 1)], {type:'application/json'}), name);
 };
 H.importD = () => $('#fileIn').click();
 $('#fileIn').onchange = async e => {
@@ -1601,6 +1660,443 @@ $('#fileIn').onchange = async e => {
     d.library.forEach(x => { if (!D.library.some(y => y.key === x.key)) D.library.push(x); });
     save(); renderList(); closeSheet(); toast(`셋리스트 ${add.length}개를 불러왔어요`);
   } catch (err) { toast('카운트인 백업 파일이 아니에요'); }
+};
+
+/* ================= 악보에 표기하기 ================= */
+const BODYF = getComputedStyle(document.documentElement).getPropertyValue('--f-body');
+// 표기는 쪽 크기에 대한 비율(0~1)로 저장: {s:[{c, w, h(형광), p:[x,y,x,y…]}], t:[{x, y, v, c, z}]}
+function drawMarks(cv, m) {
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  if (!m) return;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const st of m.s || []) {
+    const p = st.p; if (!p || p.length < 2) continue;
+    g.strokeStyle = st.c; g.globalAlpha = st.h ? .38 : 1; g.lineWidth = st.w * W;
+    g.beginPath(); g.moveTo(p[0] * W, p[1] * H);
+    for (let i = 2; i < p.length; i += 2) g.lineTo(p[i] * W, p[i + 1] * H);
+    if (p.length === 2) g.lineTo(p[0] * W + .5, p[1] * H);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+  for (const t of m.t || []) {
+    const fs = t.z * W;
+    g.font = `700 ${fs}px ${BODYF}`; g.textBaseline = 'top';
+    g.lineWidth = fs * .25; g.strokeStyle = 'rgba(255,255,255,.92)'; g.strokeText(t.v, t.x * W, t.y * H);
+    g.fillStyle = t.c; g.fillText(t.v, t.x * W, t.y * H);
+  }
+}
+const MK = {tool:'pen', c:'#E5484D', undo:[], cur:null};
+const marksOf = id => { const p = curSL(); p.marks = p.marks || {}; return p.marks[id] || (p.marks[id] = {s:[], t:[]}); };
+const redrawMk = id => document.querySelectorAll(`#pages canvas.mk[data-mk="${id}"]`).forEach(cv => drawMarks(cv, curSL().marks[id]));
+const snap = id => { MK.undo.push({id, before:JSON.stringify(marksOf(id))}); if (MK.undo.length > 60) MK.undo.shift(); };
+function setTool(b) {
+  MK.tool = b.dataset.tool; if (b.dataset.c) MK.c = b.dataset.c;
+  $('#mkBar').querySelectorAll('[data-tool]').forEach(x => x.setAttribute('aria-pressed', x === b));
+}
+function setMarking(on) {
+  P.markOn = on;
+  $('#scrPlay').classList.toggle('marking', on); $('#mkBar').hidden = !on;
+  if (on) { setUi(false); const b = $('#mkBar').querySelector(`[data-tool="${MK.tool}"]${MK.tool === 'pen' ? `[data-c="${MK.c}"]` : ''}`) || $('#mkBar [data-tool]'); setTool(b); }
+  else { $('#txtDlg').hidden = true; save(); }
+}
+$('#bMark').onclick = () => setMarking(true);
+$('#mkDone').onclick = () => { setMarking(false); toast('표기를 저장했어요'); };
+$('#mkBar').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) setTool(b); });
+$('#mkUndo').onclick = () => { const u = MK.undo.pop(); if (!u) { toast('되돌릴 게 없어요'); return; } curSL().marks[u.id] = JSON.parse(u.before); save(); redrawMk(u.id); };
+function eraseAt(id, x, y, ar) {
+  const m = marksOf(id), r = .025; let hit = false;
+  m.s = m.s.filter(st => { for (let i = 0; i < st.p.length; i += 2) if (Math.hypot(st.p[i] - x, (st.p[i + 1] - y) * ar) < r + st.w / 2) { hit = true; return false; } return true; });
+  m.t = m.t.filter(t => { const inside = x >= t.x - .01 && x <= t.x + t.v.length * t.z * .95 + .01 && y >= t.y - .01 && y <= t.y + t.z * 1.3 / ar + .01; if (inside) hit = true; return !inside; });
+  return hit;
+}
+function textHit(id, x, y, ar) { const m = marksOf(id); return m.t.findIndex(t => x >= t.x - .01 && x <= t.x + t.v.length * t.z * .95 + .01 && y >= t.y - .01 && y <= t.y + t.z * 1.3 / ar + .01); }
+let TD = null;
+function openTextDlg(id, idx, x, y) {
+  TD = {id, idx, x, y};
+  $('#txtIn').value = idx >= 0 ? marksOf(id).t[idx].v : '';
+  $('#txtDel').hidden = idx < 0;
+  $('#txtDlg').hidden = false; setTimeout(() => $('#txtIn').focus(), 50);
+}
+$('#txtCancel').onclick = () => { $('#txtDlg').hidden = true; };
+$('#txtDel').onclick = () => { if (!TD) return; snap(TD.id); marksOf(TD.id).t.splice(TD.idx, 1); save(); redrawMk(TD.id); $('#txtDlg').hidden = true; };
+$('#txtOk').onclick = () => {
+  if (!TD) return; const v = $('#txtIn').value.trim(); snap(TD.id);
+  const m = marksOf(TD.id);
+  if (TD.idx >= 0) { if (v) m.t[TD.idx].v = v; else m.t.splice(TD.idx, 1); }
+  else if (v) m.t.push({x:+TD.x.toFixed(4), y:+TD.y.toFixed(4), v, c:MK.c, z:.042});
+  save(); redrawMk(TD.id); $('#txtDlg').hidden = true;
+};
+$('#txtIn').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#txtOk').click(); } });
+(() => {
+  const pages = $('#pages');
+  const pos = (cv, e) => { const r = cv.getBoundingClientRect(); return [clamp((e.clientX - r.left) / r.width, 0, 1), clamp((e.clientY - r.top) / r.height, 0, 1), r.height / r.width]; };
+  pages.addEventListener('pointerdown', e => {
+    if (!P.markOn) return;
+    const cv = e.target.closest('canvas.mk'); if (!cv) return;
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    const id = cv.dataset.mk, [x, y, ar] = pos(cv, e);
+    if (MK.tool === 'text') { const k = textHit(id, x, y, ar); openTextDlg(id, k, x, y); return; }
+    snap(id);
+    if (MK.tool === 'erase') { MK.cur = {cv, id, erase:true, hit:eraseAt(id, x, y, ar)}; redrawMk(id); return; }
+    const st = {c:MK.tool === 'hl' ? '#FFD400' : MK.c, w:MK.tool === 'hl' ? .022 : .0035, p:[+x.toFixed(4), +y.toFixed(4)]};
+    if (MK.tool === 'hl') st.h = 1;
+    marksOf(id).s.push(st); MK.cur = {cv, id, st}; redrawMk(id);
+  });
+  pages.addEventListener('pointermove', e => {
+    const c = MK.cur; if (!c) return;
+    const [x, y, ar] = pos(c.cv, e);
+    if (c.erase) { if (eraseAt(c.id, x, y, ar)) { c.hit = true; redrawMk(c.id); } return; }
+    const p = c.st.p;
+    if (Math.hypot(x - p[p.length - 2], y - p[p.length - 1]) < .002) return;
+    p.push(+x.toFixed(4), +y.toFixed(4)); redrawMk(c.id);
+  });
+  const end = () => { const c = MK.cur; if (!c) return; MK.cur = null; if (c.erase && !c.hit) MK.undo.pop(); save(); };
+  pages.addEventListener('pointerup', end); pages.addEventListener('pointercancel', end);
+})();
+
+/* ================= 파일 저장 (웹: 공유·다운로드 / 앱: 공유 시트) ================= */
+const SCR = {};
+function loadScript(src, glob) {
+  if (window[glob]) return Promise.resolve(window[glob]);
+  return SCR[src] || (SCR[src] = new Promise((res, rej) => {
+    const el = document.createElement('script'); el.src = src;
+    el.onload = () => res(window[glob]); el.onerror = () => { delete SCR[src]; rej(new Error(src)); };
+    document.head.appendChild(el);
+  }));
+}
+async function saveFile(blob, name) {
+  const C = window.Capacitor && window.Capacitor.Plugins;
+  if (C && C.Filesystem && C.Share) {
+    const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+    const w = await C.Filesystem.writeFile({path:name.replace(/[\\/:*?"<>|]/g, '_'), data:b64, directory:'CACHE'});
+    try { await C.Share.share({title:name, files:[w.uri]}); } catch (e) {}
+    return;
+  }
+  try {
+    const f = new File([blob], name, {type:blob.type});
+    if (navigator.canShare && navigator.canShare({files:[f]})) { await navigator.share({files:[f], title:name}); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('파일을 저장했어요');
+}
+const busy = m => { const b = $('#busy'); b.hidden = !m; b.textContent = m || ''; };
+
+/* ================= 프로젝트 악보를 PDF 하나로 (표기 포함) ================= */
+function coverCanvas(p) {
+  const W = 1240, H = 1754, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.fillStyle = '#111'; g.textBaseline = 'top';
+  g.font = `800 64px ${BODYF}`; g.fillText(p.name, 90, 110);
+  const d = new Date();
+  g.font = `400 26px ${BODYF}`; g.fillStyle = '#666'; g.fillText(`카운트인 · ${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} · ${p.songs.length}곡`, 92, 200);
+  g.fillStyle = '#E5484D'; g.fillRect(90, 260, 1060, 4);
+  let y = 300;
+  p.songs.forEach((s, j) => {
+    if (y > H - 120) return;
+    g.fillStyle = '#111'; g.font = `700 34px ${BODYF}`; g.fillText(`${j + 1}. ${s.title || '제목 없음'}`, 90, y);
+    g.font = `800 34px ${BODYF}`; g.textAlign = 'right'; g.fillText(`${s.bpm} BPM`, 1150, y); g.textAlign = 'left';
+    g.font = `400 24px ${BODYF}`; g.fillStyle = '#666';
+    g.fillText([sigL(s), SUBL[s.sub], s.countIn ? `카운트 ${s.countIn}마디` : '', s.memo, s.sheet ? '' : '악보 없음'].filter(Boolean).join(' · '), 128, y + 46);
+    y += 104;
+  });
+  return c;
+}
+async function canvasPng(c) { const b = await new Promise(r => c.toBlob(r, 'image/png')); return new Uint8Array(await b.arrayBuffer()); }
+H.pmExport = async () => {
+  const p = pmProj(); if (!p) return;
+  if (!p.songs.some(s => s.sheet)) { toast('악보를 고른 곡이 없어요'); return; }
+  busy('악보 PDF 만드는 중…');
+  try {
+    const L = await loadScript('vendor/pdf-lib.min.js', 'PDFLib');
+    const out = await L.PDFDocument.create();
+    const cv = coverCanvas(p), cp0 = out.addPage([595.28, 841.89]);
+    cp0.drawImage(await out.embedPng(await canvasPng(cv)), {x:0, y:0, width:595.28, height:841.89});
+    const src = {};
+    let n = 0;
+    for (const [j, s] of p.songs.entries()) {
+      if (!s.sheet) continue;
+      let first = true;
+      for (const it of s.sheet.items) {
+        if (!src[it.key]) { const buf = await IDB.get(it.key); if (!buf) continue; src[it.key] = await L.PDFDocument.load(buf, {ignoreEncryption:true}); }
+        const sd = src[it.key], pagesNo = it.page ? [it.page] : Array.from({length:sd.getPageCount()}, (_, i) => i + 1);
+        for (const pn of pagesNo) {
+          if (pn > sd.getPageCount()) continue;
+          busy(`악보 PDF 만드는 중… ${j + 1}. ${s.title || ''}`);
+          const [pg] = await out.copyPages(sd, [pn - 1]); out.addPage(pg);
+          const {width, height} = pg.getSize(), sc = 1600 / width;
+          const ov = document.createElement('canvas'); ov.width = 1600; ov.height = Math.round(height * sc);
+          drawMarks(ov, p.marks[it.key + ':' + pn]);
+          if (first) {
+            const g = ov.getContext('2d'), fs = 26, label = `${j + 1}. ${s.title || '제목 없음'} · ${s.bpm} BPM · ${sigL(s)}`;
+            g.font = `700 ${fs}px ${BODYF}`; const w = g.measureText(label).width;
+            g.fillStyle = 'rgba(255,255,255,.95)'; g.fillRect(16, 14, w + 28, fs + 20);
+            g.strokeStyle = '#E5484D'; g.lineWidth = 3; g.strokeRect(16, 14, w + 28, fs + 20);
+            g.fillStyle = '#111'; g.textBaseline = 'top'; g.fillText(label, 30, 24);
+            first = false;
+          }
+          pg.drawImage(await out.embedPng(await canvasPng(ov)), {x:0, y:0, width, height});
+          n++;
+        }
+      }
+    }
+    const bytes = await out.save();
+    busy('');
+    await saveFile(new Blob([bytes], {type:'application/pdf'}), `${p.name}-악보.pdf`);
+    toast(`표지 + 악보 ${n}쪽을 PDF로 만들었어요`);
+  } catch (e) { busy(''); toast('PDF를 만들지 못했어요' + (e && e.message === 'vendor/pdf-lib.min.js' ? ' (인터넷 연결 확인)' : '')); }
+};
+
+/* ================= 함께 연주 (기기 연동) ================= */
+// 리더 기기가 4자리 코드로 세션을 열면(PeerJS, 기기끼리 직접 연결) 참여 기기는 프로젝트·PDF를 받고,
+// 프로젝트 설정(ctl)과 곡별 설정(follow)에 따라 리더의 시작·정지·곡 이동·악보 넘김·BPM을 따라감.
+// 박 맞추기: 참여 기기가 리더와 시계 차이(offset)를 재고, 리더는 "박 0이 스피커로 나오는 리더 시각(t0)"을 보냄.
+const SY = {peer:null, role:null, code:null, projId:null, conns:[], conn:null, offset:0, rtt:1e9, members:{}, leader:'', hb:0, cs:0, lastPage:-1, joinArm:false};
+window.__syncReady = true;
+const myName = () => D.settings.myName || ('기기 ' + D.settings.devId.slice(-4).toUpperCase());
+const peerId = code => 'countin-v1-' + code;
+function syncTag(p) {
+  if (!p) return '';
+  if (SY.role === 'leader' && SY.projId === p.id) return `🔗 리더 ${SY.code} · `;
+  if (SY.role === 'member' && SY.projId === p.id) return '🔗 따라감 · ';
+  return p.linked ? '🔗 ' : '';
+}
+async function newPeer(id) {
+  const g = await loadScript('vendor/peerjs.min.js', 'peerjs');
+  return new Promise((res, rej) => {
+    const pr = id ? new g.Peer(id, {debug:0}) : new g.Peer({debug:0});
+    const t = setTimeout(() => { pr.destroy(); rej({type:'timeout'}); }, 12000);
+    pr.on('open', () => { clearTimeout(t); res(pr); });
+    pr.on('error', e => { clearTimeout(t); pr.destroy(); rej(e); });
+  });
+}
+function syncLeave(silent) {
+  clearInterval(SY.hb); clearInterval(SY.cs);
+  const was = SY.role;
+  try { SY.conn && SY.conn.close(); } catch (e) {}
+  try { SY.peer && SY.peer.destroy(); } catch (e) {}
+  Object.assign(SY, {peer:null, role:null, code:null, projId:null, conns:[], conn:null, members:{}, rtt:1e9, lastPage:-1});
+  if (!silent && was) toast(was === 'leader' ? '세션을 닫았어요' : '세션에서 나왔어요');
+  refreshSyncViews();
+}
+function refreshSyncViews() {
+  renderHome();
+  if (!$('#scrList').hidden) renderList();
+  if (!$('#scrPlay').hidden) { const s = song(), list = curSL().songs; if (s) $('#pSub').textContent = `${syncTag(curSL())}${P.i + 1} / ${list.length} · ${sigL(s)}`; }
+  if (sheetKind === 'projmenu') rerenderPM();
+}
+
+/* ---- 리더 ---- */
+async function syncHost(projId) {
+  syncLeave(true);
+  for (let i = 0; i < 6; i++) {
+    const code = String(1000 + Math.floor(Math.random() * 9000));
+    try {
+      const peer = await newPeer(peerId(code));
+      Object.assign(SY, {peer, role:'leader', code, projId, conns:[], members:{}});
+      peer.on('connection', hostConn);
+      peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+      peer.on('error', e => { if (e.type !== 'peer-unavailable') toast('연동 연결이 불안정해요'); });
+      SY.hb = setInterval(() => sendState(), 2000);
+      refreshSyncViews();
+      return code;
+    } catch (e) { if (e.type !== 'unavailable-id') throw e; }
+  }
+  throw {type:'no-code'};
+}
+function hostConn(conn) {
+  conn.on('open', () => { SY.conns.push(conn); sendProj(conn); sendState(conn); });
+  conn.on('data', d => {
+    if (!d || !d.t) return;
+    if (d.t === 'hello') { SY.members[conn.peer] = String(d.name || '참여자'); refreshSyncViews(); toast(`${SY.members[conn.peer]} 님이 들어왔어요`); }
+    else if (d.t === 'ping') conn.send({t:'pong', a:d.a, b:performance.now()});
+    else if (d.t === 'getpdf') IDB.get(d.key).then(buf => { if (buf) conn.send({t:'pdf', key:d.key, name:(libOf(d.key) || {}).name || '악보', data:buf}); });
+  });
+  conn.on('close', () => { SY.conns = SY.conns.filter(c => c !== conn); const n = SY.members[conn.peer]; delete SY.members[conn.peer]; refreshSyncViews(); if (n) toast(`${n} 님이 나갔어요`); });
+  conn.on('error', () => {});
+}
+function projSnap() {
+  const p = D.setlists.find(x => x.id === SY.projId); if (!p) return null;
+  return {id:p.id, name:p.name, pdfs:[...p.pdfs], ctl:{...p.ctl}, songs:p.songs.map(s => JSON.parse(JSON.stringify(s))), lib:p.pdfs.map(libOf).filter(Boolean)};
+}
+function sendProj(conn) {
+  const sn = projSnap(); if (!sn) return;
+  (conn ? [conn] : SY.conns).forEach(c => { try { c.send({t:'proj', p:sn, leader:myName()}); } catch (e) {} });
+}
+function leaderState() {
+  const inProj = D.cur === SY.projId && !$('#scrPlay').hidden;
+  const st = {t:'state', i:inProj ? P.i : -1, bpm:P.bpm, playing:!!(inProj && E.playing), page:inProj && P.sheetOn ? (SV.cur || 0) : -1};
+  if (st.playing && E.ctx) st.t0 = performance.now() + (E.start - outNow()) * 1000;
+  return st;
+}
+function sendState(conn) {
+  if (SY.role !== 'leader') return;
+  const st = leaderState();
+  (conn ? [conn] : SY.conns).forEach(c => { try { c.send(st); } catch (e) {} });
+}
+function syncSendState() { if (SY.role === 'leader') sendState(); }
+function syncPage() {
+  if (SY.role !== 'leader' || !P.sheetOn || D.cur !== SY.projId || SV.cur === SY.lastPage) return;
+  SY.lastPage = SV.cur;
+  SY.conns.forEach(c => { try { c.send({t:'page', k:SV.cur, i:P.i}); } catch (e) {} });
+}
+// 리더가 곡·BPM을 고치면 참여자에게 다시 보냄
+let projPushT;
+function syncProjChanged() { if (SY.role !== 'leader' || D.cur !== SY.projId) return; clearTimeout(projPushT); projPushT = setTimeout(() => sendProj(), 400); }
+
+/* ---- 참여자 ---- */
+async function syncJoin(code) {
+  syncLeave(true);
+  ensureCtx();
+  const peer = await newPeer();
+  const conn = peer.connect(peerId(code), {reliable:true, serialization:'binary'});
+  await new Promise((res, rej) => {
+    const t = setTimeout(() => rej({type:'timeout'}), 12000);
+    conn.on('open', () => { clearTimeout(t); res(); });
+    conn.on('error', e => { clearTimeout(t); rej(e); });
+    peer.on('error', e => { clearTimeout(t); rej(e); });
+  }).catch(e => { try { peer.destroy(); } catch (x) {} throw e; });
+  Object.assign(SY, {peer, conn, role:'member', code});
+  conn.send({t:'hello', name:myName()});
+  conn.on('data', memberData);
+  conn.on('close', () => { if (SY.role === 'member') { toast('리더와 연결이 끊겼어요'); syncLeave(true); } });
+  clockSync(); SY.cs = setInterval(clockSync, 15000);
+}
+function clockSync() {
+  if (!SY.conn) return;
+  SY.rtt = 1e9;
+  for (let i = 0; i < 8; i++) setTimeout(() => { try { SY.conn && SY.conn.send({t:'ping', a:performance.now()}); } catch (e) {} }, i * 120);
+}
+function memberData(d) {
+  if (!d || !d.t) return;
+  if (d.t === 'pong') {
+    const c = performance.now(), rtt = c - d.a;
+    if (rtt < SY.rtt) { SY.rtt = rtt; SY.offset = d.b - (d.a + c) / 2; }
+  }
+  else if (d.t === 'proj') applyProj(d.p, d.leader);
+  else if (d.t === 'pdf') receivePdf(d);
+  else if (d.t === 'state') applyState(d);
+  else if (d.t === 'page') applyPage(d);
+}
+const linkedProj = () => D.setlists.find(x => x.id === SY.projId);
+async function applyProj(sn, leader) {
+  const id = 'link-' + sn.id;
+  let p = D.setlists.find(x => x.id === id);
+  const fresh = !p;
+  if (!p) { p = {id, marks:{}}; D.setlists.unshift(p); }
+  Object.assign(p, {name:sn.name, pdfs:[...sn.pdfs], ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true}, sn.ctl), songs:sn.songs.map(x => newSong(x)), linked:{leader:String(leader || '리더')}});
+  SY.projId = id; SY.leader = p.linked.leader;
+  const need = [];
+  for (const L of sn.lib || []) {
+    if (!D.library.some(x => x.key === L.key)) D.library.push({key:L.key, name:L.name, pages:L.pages || 0});
+    try { if (!(await IDB.get(L.key))) need.push(L.key); } catch (e) { need.push(L.key); }
+  }
+  save();
+  need.forEach(k => { try { SY.conn.send({t:'getpdf', key:k}); } catch (e) {} });
+  if (fresh) toast(`"${sn.name}" 프로젝트를 받았어요${need.length ? ` · 악보 ${need.length}개 받는 중` : ''}`);
+  refreshSyncViews();
+  if (!$('#scrPlay').hidden && D.cur === id) { const s = song(); if (s && !E.playing) { P.bpm = s.bpm; } renderPlay(); }
+}
+async function receivePdf(d) {
+  try { await IDB.put(d.key, d.data instanceof ArrayBuffer ? d.data : new Uint8Array(d.data).buffer); } catch (e) { toast('악보를 저장하지 못했어요 (저장 공간 확인)'); return; }
+  DOCS.delete(d.key);
+  const L = libOf(d.key); if (L && d.name) L.name = d.name;
+  save();
+  if (!$('#scrPlay').hidden && P.sheetOn) { SV.sig = null; applySheet(); }
+  toast(`악보 "${d.name}" 받았어요`);
+}
+// 따라갈지: 리더 제어 전체가 꺼지면 안 따름 → 곡별 설정(따라가기/안 따라가기)이 있으면 그것 → 없으면 프로젝트 항목 설정
+function follows(p, s, what) {
+  if (!p || !p.ctl.on) return false;
+  if (s && s.follow === 'off') return false;
+  if (s && s.follow === 'on') return true;
+  return !!p.ctl[what];
+}
+function startAtLeader(t0Local, bpm) {
+  ensureCtx();
+  const spb = 60 / bpm, ns = outNow() + (t0Local - performance.now()) / 1000;
+  if (E.playing && Math.abs(spb - E.spb) < 1e-6 && Math.abs(ns - E.start) < .015) return;
+  const was = E.playing;
+  E.spb = spb; E.start = ns; E.n = Math.max(0, Math.ceil((E.ctx.currentTime + .01 - E.start) / E.spb)); E.sub = 0; E.playing = true;
+  if (!was) P.barOff = 0;
+  P.bpm = bpm; updBpm(); updPlayBtn();
+}
+function applyState(st) {
+  const p = linkedProj(); if (!p || !p.ctl.on) return;
+  if (st.i < 0 || st.i >= p.songs.length) { if (E.playing && D.cur === p.id && follows(p, song(), 'start')) stop(); return; }
+  const target = p.songs[st.i];
+  if (follows(p, target, 'song')) {
+    const inPlay = !$('#scrPlay').hidden && D.cur === p.id;
+    if (!inPlay) { if ($('#scrList').hidden || D.cur !== p.id) { if (!$('#scrPlay').hidden) closePlay(); D.cur = p.id; renderList(); show('list'); history.pushState({s:'list'}, ''); } openPlay(st.i, false); }
+    else if (P.i !== st.i) go(st.i);
+  }
+  if (D.cur !== p.id || $('#scrPlay').hidden || P.i !== st.i) return;
+  if (follows(p, target, 'bpm') && !st.playing && P.bpm !== st.bpm) { P.bpm = st.bpm; updBpm(); }
+  if (follows(p, target, 'start')) {
+    if (st.playing && st.t0) startAtLeader(st.t0 - SY.offset, follows(p, target, 'bpm') ? st.bpm : P.bpm);
+    else if (!st.playing && E.playing) stop();
+  }
+  if (st.page >= 0 && follows(p, target, 'page') && P.sheetOn && SV.cur !== st.page) gotoPageIdx(st.page);
+}
+function applyPage(d) {
+  const p = linkedProj(); if (!p || D.cur !== p.id || $('#scrPlay').hidden || P.i !== d.i) return;
+  if (follows(p, song(), 'page') && P.sheetOn) gotoPageIdx(d.k);
+}
+
+/* ---- 화면 ---- */
+function syncSection(p) {
+  const isLeader = SY.role === 'leader' && SY.projId === p.id, isMember = SY.role === 'member' && SY.projId === p.id;
+  const c = p.ctl, t = (k, label, sub) => `<button type="button" class="tg" data-act="ctlTgl" data-k="${k}" role="switch" aria-checked="${!!c[k]}"${k !== 'on' && !c.on ? ' disabled' : ''}><span>${label}${sub ? `<small>${sub}</small>` : ''}</span><span class="sw"></span></button>`;
+  const names = Object.values(SY.members);
+  return `<div class="sec-t">함께 연주 (다른 기기와 연동)</div>
+    ${isLeader ? `<div class="librow"><span class="nm"><b style="font-family:var(--f-num);font-size:34px;letter-spacing:.12em">${SY.code}</b><small>참여 코드 · ${names.length ? names.length + '명: ' + esc(names.join(', ')) : '아직 들어온 사람 없음'}</small></span><button type="button" class="danger" data-act="syncClose">세션 닫기</button></div>
+      <p class="note">다른 기기에서 홈 → 🔗 참여 → 이 코드를 넣으면 이 프로젝트(곡·BPM·악보)를 받아요. 같은 와이파이에서 가장 잘 돼요.</p>`
+    : isMember ? `<div class="librow"><span class="nm"><b>리더: ${esc(SY.leader)}</b><small>코드 ${SY.code} · 연결됨 · 시계 차이 ${Math.round(SY.rtt / 2)}ms 이내로 맞춤</small></span><button type="button" class="danger" data-act="syncClose">나가기</button></div>`
+    : p.linked ? `<p class="note">리더 ${esc(p.linked.leader)}에게서 받은 프로젝트예요. 다시 연결하려면 홈 → 🔗 참여.</p>`
+    : `<button type="button" class="pill" data-act="syncHost" style="align-self:flex-start">🔗 리더로 세션 열기</button>`}
+    <div class="sec-t" style="margin-top:2px">리더가 제어할 것 ${isMember ? '(리더 설정을 받아요)' : ''}</div>
+    ${t('on', '리더 제어 전체', '끄면 참여 기기가 아무것도 따라가지 않아요')}
+    ${t('start', '시작·정지 (박 맞춰 동시에)')}
+    ${t('song', '곡 이동')}
+    ${t('page', '악보 넘김')}
+    ${t('bpm', 'BPM 변경')}
+    <p class="note">곡마다 따로 정하려면 곡 편집 → "함께 연주할 때 이 곡은 리더를".</p>`;
+}
+H.ctlTgl = b => {
+  const p = pmProj(), k = b.dataset.k; p.ctl[k] = !p.ctl[k]; save(); rerenderPM();
+  if (SY.role === 'leader' && SY.projId === p.id) sendProj();
+};
+H.syncHost = async () => {
+  const p = pmProj(); busy('세션 여는 중…');
+  try { const code = await syncHost(p.id); busy(''); rerenderPM(); toast(`참여 코드 ${code}`); }
+  catch (e) { busy(''); toast(e && e.type === 'network' || e && e.type === 'timeout' ? '인터넷 연결을 확인해 주세요' : '세션을 열지 못했어요'); }
+};
+H.syncClose = () => { syncLeave(); };
+$('#bJoin').onclick = () => {
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><button class="txtbtn" data-act="close">취소</button><h2>함께 연주 참여</h2><button class="txtbtn strong" data-act="doJoin">참여</button></div>
+  <div class="sh-body">
+    ${SY.role ? `<p class="note">지금 ${SY.role === 'leader' ? '리더 세션(' + SY.code + ')을 열고' : '세션(' + SY.code + ')에 참여하고'} 있어요. 새로 참여하면 끊어져요.</p>` : ''}
+    <label class="fld"><span>리더의 참여 코드 (숫자 4자리)</span><input id="joinCode" type="text" inputmode="numeric" maxlength="4" placeholder="1234" autocomplete="off" style="font-family:var(--f-num);font-size:30px;letter-spacing:.2em;text-align:center"></label>
+    <label class="fld"><span>내 이름 (리더 화면에 보여요)</span><input id="joinName" type="text" maxlength="20" value="${esc(D.settings.myName)}" placeholder="${esc(myName())}" autocomplete="off"></label>
+    <p class="note">리더의 프로젝트(곡·BPM·악보)를 받아 "🔗" 프로젝트로 만들어요. 내 표기는 내 기기에만 남아요.</p>
+  </div>`;
+  openSheet('join');
+  const ci = $('#joinCode'); ci.addEventListener('keydown', e => { if (e.key === 'Enter') H.doJoin(); });
+};
+H.doJoin = async () => {
+  const code = ($('#joinCode').value || '').replace(/\D/g, '');
+  const nm = ($('#joinName').value || '').trim(); D.settings.myName = nm; save();
+  if (code.length !== 4) { toast('코드 4자리를 넣어 주세요'); return; }
+  busy('리더에게 연결하는 중…');
+  try {
+    await syncJoin(code);
+    busy(''); closeSheet(); toast('연결됐어요 · 프로젝트를 받는 중');
+  } catch (e) {
+    busy('');
+    toast(e && e.type === 'peer-unavailable' ? '그 코드의 세션을 찾지 못했어요' : e && (e.type === 'network' || e.type === 'timeout') ? '연결하지 못했어요 · 같은 와이파이인지 확인해 주세요' : '연결하지 못했어요');
+  }
 };
 
 /* ================= 키보드 ================= */
@@ -1631,6 +2127,9 @@ $('#fileIn').onchange = async e => {
   });
   document.addEventListener('focusout', () => setTimeout(calc, 120));
 })();
+
+// 점검용: 지금 박 위치·BPM 읽기 (화면에는 영향 없음)
+window.__countin = {beat:() => beatNow(), bpm:() => P.bpm, offset:() => SY.offset, rtt:() => SY.rtt};
 
 /* ================= 시작 ================= */
 renderHome(); show('home');
