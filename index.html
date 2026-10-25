@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com; font-src 'self' data:; connect-src 'self' blob: data: https://0.peerjs.com wss://0.peerjs.com https://*.supabase.co wss://*.supabase.co https://www.youtube.com; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com; font-src 'self' data:; frame-src https://www.youtube-nocookie.com https://www.youtube.com; connect-src 'self' blob: data: https://0.peerjs.com wss://0.peerjs.com https://*.supabase.co wss://*.supabase.co https://www.youtube.com; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,interactive-widget=resizes-content">
 <meta name="theme-color" content="#0F1217">
@@ -460,6 +460,28 @@ li.dragging{outline-color:var(--text)}
 .tonechip{display:inline-block;margin-left:4px;padding:0 6px;border:1px solid var(--line);border-radius:6px;font-family:var(--f-num);font-weight:700;font-size:14px;line-height:20px;color:var(--text);vertical-align:1px}
 .lbar{display:flex;gap:8px;padding:0 12px 8px}
 .lbar .btn2 .i{width:18px;height:18px}
+.blbody{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:14px 16px calc(16px + var(--sb));width:100%;max-width:680px;margin:0 auto}
+.blvid{flex:none;display:flex;flex-direction:column;gap:8px}
+.blframe{aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--panel);border:var(--lw) solid var(--line)}
+.blframe iframe{width:100%;height:100%;border:0;display:block}
+.blsrc{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mute)}
+.blsrc span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blsrc .pill{flex:none;display:inline-flex;align-items:center;gap:4px;min-height:36px;font-size:13px}
+.blsrc .i{width:16px;height:16px}
+.blnovid{display:flex;flex-direction:column;gap:10px;padding:14px;border:var(--lw) dashed var(--line);border-radius:12px}
+.blres{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.blres .tpad-bpm{font-size:clamp(72px,22vw,128px)}
+.blalt{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;align-items:center}
+.blalt .note{margin-right:4px}
+.blmic{display:flex;align-items:center;gap:12px}
+.blmic .btn2{height:52px;min-width:140px}
+.blmic .btn2.on{background:var(--text);color:var(--ink);border-color:var(--text)}
+.blbars{flex:1;display:flex;flex-direction:column;gap:6px}
+.blbar{height:6px;border-radius:3px;background:var(--raise);overflow:hidden;position:relative}
+.blbar i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--text);transition:width .2s linear}
+.blbar.lv i{background:var(--mute);transition:width .08s linear}
+.blpad{flex:1 0 150px;margin:0;gap:4px}
+.blpad b{font-size:28px;font-family:var(--f-num)}
 .visgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .visgrid .rolecard{padding:12px 14px}
 .txtdlg .ok{background:var(--text);color:var(--ink);font-weight:700;border-color:var(--text)!important}
@@ -746,6 +768,16 @@ body[data-lay="regular"] .sh-head,body[data-lay="wide"] .sh-head{top:0;padding-t
     <div class="tpad-st" id="tpSt">탭</div>
     <div class="tpad-dots" id="tpDots"></div>
     
+  </div>
+</div>
+<div id="blab" class="tpad" hidden role="dialog" aria-modal="true" aria-label="BPM 재기">
+  <div class="tpad-top"><button class="txtbtn" id="blCancel">취소</button><h2 id="blTitle">BPM 재기</h2><button class="txtbtn strong" id="blApply" disabled>적용</button></div>
+  <div class="blbody">
+    <div class="blvid" id="blVid"></div>
+    <div class="blres"><div class="tpad-bpm num dim" id="blBpm">—</div><div class="blalt" id="blAlt"></div><div class="tpad-st" id="blSt"></div></div>
+    <div class="blmic"><button type="button" class="btn2" id="blMic"></button><div class="blbars"><div class="blbar"><i id="blProg"></i></div><div class="blbar lv"><i id="blLvl"></i></div></div></div>
+    <p class="note">영상은 노트북·스피커 같은 다른 기기로 틀고 이 폰을 가까이 대면 가장 잘 들어요. 15초쯤 들으면 BPM이 나와요.</p>
+    <div class="tpad-area blpad" id="blTap"><span class="tpad-st">박에 맞춰 여기를 두드리세요</span><b class="num" id="blTapN"></b></div>
   </div>
 </div>
 <div id="txtDlg" class="txtdlg" hidden>

@@ -35,6 +35,7 @@ const ICONS = {
   google:`<path d="M19.5 12h-7M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/>`,
   music:`<path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/>`,
   ext:`<path d="M13.5 5H19v5.5M19 5l-8 8"/><path d="M17 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 4 18.5v-10A1.5 1.5 0 0 1 5.5 7H10"/>`,
+  mic:`<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>`,
   chevD:`<path d="M6.5 9.5L12 15l5.5-5.5"/>`,
 };
 const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1178,6 +1179,7 @@ function closeSheet(fromPop) { if ($('#shw').hidden) return; if (sheetKind === '
 $('#shw').addEventListener('click', e => { if (e.target.id === 'shw') { if (sheetKind === 'editor' && !edGuard()) return; closeSheet(); } });
 window.addEventListener('popstate', () => {
   if (ignorePop) { ignorePop = false; return; }
+  if (!$('#blab').hidden) { closeBpmLab(true); return; }
   if (!$('#tpad').hidden) { closeTapPad(true); return; }
   if (!$('#shw').hidden) { if (sheetKind === 'editor' && !edGuard()) { history.pushState({s:'sheet'}, ''); return; } closeSheet(true); return; }
   if (VIEW === 'play') {
@@ -1274,7 +1276,7 @@ function renderEditor() {
       <button type="button" class="rbtn" data-act="bpm" data-v="-1" aria-label="BPM 내리기"${dis}>−</button>
       <input id="fBpm" type="number" inputmode="numeric" min="20" max="300" value="${d.bpm}" aria-label="BPM"${dis}>
       <button type="button" class="rbtn" data-act="bpm" data-v="1" aria-label="BPM 올리기"${dis}>+</button>
-      <button type="button" class="tapbtn" data-act="tap" id="fTap"${dis}>두드려서 재기</button></div></div>
+      <button type="button" class="tapbtn" data-act="tap" id="fTap"${dis}>BPM 재기</button></div></div>
     <div class="fld"><span>코드 (키)</span>
       <div class="kchips" role="group" aria-label="코드 고르기">${['', ...KEYS].map(k => `<button type="button" class="kchip" data-act="keyPick" data-v="${k}" aria-pressed="${toneBase(d.tone) === k}"${dis}>${k || '없음'}</button>`).join('')}<button type="button" class="kchip" data-act="keyMinor" aria-pressed="${/^[A-G][#b]?m/.test(d.tone)}"${dis || (d.tone ? '' : ' disabled')}>m 단조</button></div>
       <input id="fTone" class="inp" type="text" value="${esc(d.tone)}" placeholder="직접 쓰기 · 예: D→E, F#m" maxlength="12" autocomplete="off"${dis}></div>
@@ -1330,7 +1332,9 @@ H.tgl = b => {
 H.bpm = b => { syncDraft(); draft.bpm = clamp(draft.bpm + +b.dataset.v, 20, 300); $('#fBpm').value = draft.bpm; };
 H.tap = () => {
   syncDraft();
-  openTapPad(draft.bpm, v => { draft.bpm = v; const el = $('#fBpm'); if (el) el.value = v; });
+  let refChanged = false;
+  openBpmLab(draft, {apply:v => { draft.bpm = v; const el = $('#fBpm'); if (el) el.value = v; }, ref:r => { draft.ref = r; refChanged = true; },
+    done:() => { if (refChanged && sheetKind === 'editor') { const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st; } }});
 };
 H.rmSheet = () => { syncDraft(); draft.sheet = null; const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st; };
 
@@ -1599,7 +1603,7 @@ function renderSettings() {
     <p class="note">불러온 콘티는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v3.4 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
+    <p class="note" style="color:var(--dim)">카운트인 v3.5 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -2247,6 +2251,7 @@ function renderPlist() {
     <div class="sh-body">
       <p class="acctlead">${PL.ref + 1}. ${esc(s2.title || '제목 없음')}${s2.tone ? ` <span class="tonechip">${esc(s2.tone)}</span>` : ''}</p>
       ${s2.ref ? refCard(s2.ref, '<button type="button" class="pill danger" data-act="plRefDel">빼기</button>') : ''}
+      ${s2.ref ? `<button type="button" class="btn2" data-act="plMeasure" style="align-self:flex-start">${ic('mic')}이 레퍼런스로 BPM 재기 · 지금 ${s2.bpm}</button>` : ''}
       <button type="button" class="btn2" data-act="plFind" style="align-self:flex-start">${ic('ext')}유튜브에서 찾기</button>
       <p class="note">마음에 드는 영상에서 공유 → 링크 복사 후 아래에 붙여넣으세요.</p>
       <div class="row2"><input id="plRefIn" class="inp" type="url" inputmode="url" placeholder="${s2.ref ? '다른 링크로 바꾸기' : '유튜브 링크 붙여넣기'}" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="plRefSave">넣기</button></div>
@@ -2271,6 +2276,10 @@ function renderPlist() {
 const rerenderPL = () => { const st = sheet.scrollTop; renderPlist(); sheet.scrollTop = st; };
 H.plRef = b => { PL.ref = +b.dataset.i; renderPlist(); sheet.scrollTop = 0; setTimeout(() => { const el = $('#plRefIn'); if (el) el.focus(); }, 200); };
 H.plBack = () => { PL.ref = -1; renderPlist(); };
+H.plMeasure = () => {
+  const s2 = curSL().songs[PL.ref]; if (!s2) return;
+  openBpmLab(s2, {apply:v => { s2.bpm = v; save(); renderList(); }, ref:r => { s2.ref = r; save(); }, done:() => { if (sheetKind === 'plist') rerenderPL(); }});
+};
 H.plFind = () => { const s2 = curSL().songs[PL.ref]; if (s2) { openExt(ytSearch(s2)); toast('영상 링크를 복사해서 붙여넣으세요'); } };
 H.plRefSave = async () => {
   const s2 = curSL().songs[PL.ref], r = cleanRef(($('#plRefIn') || {}).value || '');
@@ -2849,6 +2858,195 @@ $('#bAcct').onclick = openAcct;
 if (cloudReady() && (localStorage.getItem('countin-auth') || /[?&]code=/.test(location.search))) { CL.loggingIn = /[?&]code=/.test(location.search); cloudClient().catch(() => {}); }
 window.__cloudReady = true;
 updAcct();
+
+/* ================= 템포 분석 (마이크로 들은 소리 → BPM 후보) ================= */
+// 1) 소리를 짧게(약 5ms 간격) 잘라 주파수별 세기를 보고, 직전보다 커진 만큼(스펙트럼 플럭스)을 "박이 칠 만한 순간" 곡선으로
+// 2) 그 곡선이 몇 칸마다 되풀이되는지(자기상관)를 보고, 배수(2·3·4배)에서도 맞는 주기를 고름 → 정밀하게 0.1 BPM 단위로 다듬음
+function makeFlux(sr) {
+  const N = 1024, H = 256, half = N / 2, maxBin = Math.min(half, Math.round(8000 / (sr / N)));
+  const win = Float32Array.from({length:N}, (_, i) => .5 - .5 * Math.cos(2 * Math.PI * i / N));
+  const rev = new Uint32Array(N); for (let i = 0, j = 0; i < N; i++) { rev[i] = j; let b = N >> 1; while (j & b) { j ^= b; b >>= 1; } j |= b; }
+  const cosT = Float32Array.from({length:half}, (_, i) => Math.cos(2 * Math.PI * i / N)), sinT = Float32Array.from({length:half}, (_, i) => -Math.sin(2 * Math.PI * i / N));
+  const re = new Float32Array(N), im = new Float32Array(N), prev = new Float32Array(maxBin), ring = new Float32Array(N);
+  let w = 0, fill = 0, since = 0, level = 0;
+  const env = [];
+  function frame() {
+    for (let i = 0; i < N; i++) { const v = ring[(w + i) % N] * win[i]; re[rev[i]] = v; im[rev[i]] = 0; }
+    for (let size = 2; size <= N; size <<= 1) {
+      const h2 = size >> 1, step = N / size;
+      for (let i = 0; i < N; i += size) for (let j = 0, k = 0; j < h2; j++, k += step) {
+        const a = i + j, b = a + h2, tr = re[b] * cosT[k] - im[b] * sinT[k], ti = re[b] * sinT[k] + im[b] * cosT[k];
+        re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+      }
+    }
+    let f = 0;
+    for (let k = 1; k < maxBin; k++) { const m = Math.log1p(100 * Math.hypot(re[k], im[k])), d = m - prev[k]; if (d > 0) f += d; prev[k] = m; }
+    env.push(f);
+  }
+  return {
+    env, fps:sr / H,
+    level:() => level,
+    push(x) {   // x: Float32Array 소리 조각
+      let pk = 0;
+      for (let i = 0; i < x.length; i++) {
+        const v = x[i]; ring[w] = v; w = (w + 1) % N; if (fill < N) fill++;
+        const a = v < 0 ? -v : v; if (a > pk) pk = a;
+        if (fill === N && ++since >= H) { since = 0; frame(); }
+      }
+      level = Math.max(pk, level * .9);
+    },
+  };
+}
+function tempoOf(env0, fps) {
+  const n = env0.length; if (n < fps * 4) return null;
+  // 국소 평균을 빼고(0.4초) 음수는 버림 → 표준화
+  const r = Math.max(1, Math.round(fps * .2)), env = new Float32Array(n);
+  let acc = 0; const cs = new Float64Array(n + 1); for (let i = 0; i < n; i++) cs[i + 1] = cs[i] + env0[i];
+  for (let i = 0; i < n; i++) { const a = Math.max(0, i - r), b = Math.min(n, i + r + 1), m = (cs[b] - cs[a]) / (b - a); env[i] = Math.max(0, env0[i] - m); acc += env[i]; }
+  const mean = acc / n; let sd = 0; for (let i = 0; i < n; i++) { env[i] -= mean; sd += env[i] * env[i]; } sd = Math.sqrt(sd / n) || 1;
+  for (let i = 0; i < n; i++) env[i] /= sd;
+  const maxL = Math.min(Math.ceil(fps * 60 / 40) * 4, Math.floor(n * .7));
+  const ac = new Float32Array(maxL + 2);
+  for (let L = 1; L <= maxL + 1; L++) { let s = 0; for (let i = L; i < n; i++) s += env[i] * env[i - L]; ac[L] = s / (n - L); }
+  const at = x => { if (x >= maxL + 1) return 0; const i = Math.floor(x), f = x - i; return ac[i] * (1 - f) + ac[i + 1] * f; };
+  // 주기 L이 진짜 박이면 2L·3L·4L에서도 맞아야 함 (8분·16분 같은 잘게 쪼갠 소리에 끌려가지 않게)
+  const score = L => at(L) + .5 * at(2 * L) + .33 * at(3 * L) + .25 * at(4 * L);
+  const weight = bpm => Math.exp(-.5 * (Math.log2(bpm / 105) / .9) ** 2);   // 사람이 박으로 느끼는 빠르기(60~160) 쪽을 조금 더
+  let best = null;
+  for (let bpm = 40; bpm <= 240; bpm += .5) { const L = fps * 60 / bpm, s = score(L) * weight(bpm); if (!best || s > best.s) best = {bpm, s}; }
+  // 다듬기: 먼 배수(최대 8배)까지 맞춰 보면 주기가 더 정확해짐
+  const fine = L => { let s = 0; for (let k = 1; k <= 8 && k * L < maxL; k++) s += at(k * L); return s; };
+  let fb = best.bpm, fs = -1e9;
+  for (let bpm = best.bpm - 1.5; bpm <= best.bpm + 1.5; bpm += .02) { const s = fine(fps * 60 / bpm); if (s > fs) { fs = s; fb = bpm; } }
+  best = {bpm:fb, s:best.s};
+  // 믿을 만한지: 최고 점수가 전체 평균보다 얼마나 튀는지
+  let tot = 0, cnt = 0; for (let bpm = 40; bpm <= 240; bpm += 2) { tot += Math.max(0, score(fps * 60 / bpm) * weight(bpm)); cnt++; }
+  const conf = best.s / ((tot / cnt) || 1e-9);
+  const alt = [best.bpm / 2, best.bpm * 2, best.bpm * 2 / 3, best.bpm * 3 / 2].filter(x => x >= 40 && x <= 240).map(x => Math.round(x));
+  return {bpm:Math.round(best.bpm), raw:best.bpm, conf, alt:[...new Set(alt)].filter(x => x !== Math.round(best.bpm))};
+}
+
+/* ================= BPM 재기: 레퍼런스 영상 보면서 → 마이크로 듣고 자동 분석 → 두드려서 확인 ================= */
+const BL = {s:null, cb:null, ts:[], tap:null, auto:null, man:null, mic:null, timer:0, est:[], last:0, flashT:0, quiet:0};
+// 같은 박의 다른 셈법: 반·두 배(8분/4분 착각), 2/3·3/2(셋잇단·6/8)
+const candsOf = raw => [...new Set([raw, raw / 2, raw * 2, raw * 2 / 3, raw * 1.5].filter(x => x >= 40 && x <= 240).map(x => Math.round(x)))];
+const near = (a, b, tol = .08) => Math.abs(a - b) / b <= tol;
+function blPick() {
+  if (!BL.s) return null;
+  if (BL.man) return BL.man;
+  const C = BL.auto ? candsOf(BL.auto.raw) : [];
+  if (BL.tap) { const c = C.find(x => near(x, BL.tap.bpm)); return c || BL.tap.bpm; }
+  if (!BL.auto) return null;
+  // 곡에 이미 적어 둔 BPM이 있으면 그 근처(반·두 배, 6/8이면 2/3까지)를 고름
+  const h = BL.s.bpm, dotted = isDotted(BL.s);
+  if (h && h !== 100) { const ok = [BL.auto.raw, BL.auto.raw / 2, BL.auto.raw * 2, ...(dotted ? [BL.auto.raw * 2 / 3] : [])].find(x => near(x, h, .1)); if (ok) return Math.round(ok); }
+  if (dotted) { const d = BL.auto.raw * 2 / 3; if (d >= 40) return Math.round(d); }
+  return BL.auto.bpm;
+}
+function openBpmLab(s, cb) {
+  Object.assign(BL, {s, cb, ts:[], tap:null, auto:null, man:null, est:[], last:0, quiet:0});
+  $('#blTitle').textContent = s.title ? s.title : 'BPM 재기';
+  renderBlVid(); blShow();
+  $('#blab').hidden = false; history.pushState({s:'blab'}, '');
+}
+function closeBpmLab(fromPop) {
+  if ($('#blab').hidden) return;
+  blMicStop(); $('#blVid').innerHTML = '';      // 영상도 멈춤
+  $('#blab').hidden = true;
+  if (BL.cb && BL.cb.done) BL.cb.done();
+  if (!fromPop) { ignorePop = true; history.back(); }
+}
+function renderBlVid() {
+  const r = BL.s.ref, v = $('#blVid');
+  if (r && r.v) v.innerHTML = `<div class="blframe"><iframe src="https://www.youtube-nocookie.com/embed/${r.v}?playsinline=1&rel=0" title="레퍼런스 영상" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>
+    <div class="blsrc"><span>${esc(r.n || '레퍼런스 영상')}</span><button type="button" class="pill" data-u="${esc(r.u)}" id="blOpen">${ic('ext')}유튜브에서</button></div>`;
+  else if (r) v.innerHTML = `<div class="blsrc"><span>${esc(r.n || r.u)}</span><button type="button" class="pill" data-u="${esc(r.u)}" id="blOpen">${ic('ext')}열기</button></div>`;
+  else v.innerHTML = `<div class="blnovid"><p class="note">레퍼런스 영상 링크를 넣으면 여기서 보면서 잴 수 있어요.</p>
+    <div class="row2"><input id="blRef" class="inp" type="url" inputmode="url" placeholder="유튜브 링크 붙여넣기" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" id="blFind">유튜브에서 찾기</button></div></div>`;
+}
+$('#blVid').addEventListener('click', e => {
+  if (e.target.closest('#blOpen')) openExt(e.target.closest('#blOpen').dataset.u);
+  else if (e.target.closest('#blFind')) { openExt(ytSearch(BL.s)); toast('영상 링크를 복사해서 붙여넣으세요'); }
+});
+$('#blVid').addEventListener('input', async e => {
+  if (e.target.id !== 'blRef' || !ytId(e.target.value)) return;
+  const r = cleanRef(e.target.value); BL.s.ref = r; if (BL.cb && BL.cb.ref) BL.cb.ref(r);
+  renderBlVid(); await refTitle(r); if (BL.cb && BL.cb.ref) BL.cb.ref(r); if (!$('#blab').hidden && BL.s.ref === r) renderBlVid();
+});
+function blShow() {
+  const pick = blPick(), C = BL.auto ? candsOf(BL.auto.raw) : [];
+  $('#blBpm').textContent = pick || '—'; $('#blBpm').classList.toggle('dim', !pick);
+  $('#blAlt').innerHTML = C.length > 1 ? `<span class="note">다르게 세면</span>` + C.map(x => `<button type="button" class="kchip" data-v="${x}" aria-pressed="${x === pick}">${x}</button>`).join('') : '';
+  const st = [];
+  if (BL.mic) st.push('듣는 중…');
+  if (BL.auto) {
+    const e = BL.est.slice(-3), steady = e.length >= 3 && Math.max(...e) - Math.min(...e) < 1.2;
+    st.push(`들은 소리 · ${steady ? '<b>안정적</b>' : '<b class="warn">아직 흔들려요</b>'}`);
+  }
+  if (BL.tap) st.push(`두드림 ${BL.tap.bpm}${BL.auto && C.some(x => near(x, BL.tap.bpm)) ? ' · <b>들은 값과 맞아요</b>' : ''}`);
+  if (!st.length) st.push(`지금 ${BL.s.bpm} BPM · 영상을 틀고 <b>듣고 분석</b>을 누르거나, 아래를 박에 맞춰 두드리세요`);
+  $('#blSt').innerHTML = st.join(' · ');
+  $('#blApply').disabled = !pick;
+  $('#blMic').innerHTML = BL.mic ? `${ic('pause')}그만 듣기` : `${ic('mic')}${BL.auto ? '다시 듣기' : '듣고 분석'}`;
+  $('#blMic').classList.toggle('on', !!BL.mic);
+}
+$('#blAlt').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; BL.man = +b.dataset.v; blShow(); });
+async function blMicStart() {
+  const md = navigator.mediaDevices;
+  if (!md || !md.getUserMedia) { toast('이 브라우저에선 마이크를 쓸 수 없어요 · 두드려서 재 주세요'); return; }
+  let stream;
+  try { stream = await md.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}); }
+  catch (e) { toast('마이크를 쓸 수 있게 허락해 주세요'); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try { await ctx.resume(); } catch (e) {}
+  const src = ctx.createMediaStreamSource(stream), node = ctx.createScriptProcessor(2048, 1, 1), mute = ctx.createGain(), fl = makeFlux(ctx.sampleRate);
+  mute.gain.value = 0;
+  node.onaudioprocess = e => fl.push(e.inputBuffer.getChannelData(0));
+  src.connect(node); node.connect(mute); mute.connect(ctx.destination);
+  Object.assign(BL, {mic:{stream, ctx, src, node, fl, t0:performance.now()}, est:[], last:0, quiet:0, auto:null, man:null});
+  clearInterval(BL.timer); BL.timer = setInterval(blTick, 200);
+  blShow();
+}
+function blMicStop() {
+  const m = BL.mic; clearInterval(BL.timer); if (!m) return;
+  BL.mic = null;
+  try { m.node.onaudioprocess = null; m.src.disconnect(); m.node.disconnect(); } catch (e) {}
+  try { m.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  try { m.ctx.close(); } catch (e) {}
+  $('#blProg').style.width = '0'; $('#blLvl').style.width = '0';
+  if (!$('#blab').hidden) blShow();
+}
+const BL_SECS = 16;
+function blTick() {
+  const m = BL.mic; if (!m) return;
+  const sec = (performance.now() - m.t0) / 1000, lv = m.fl.level();
+  $('#blLvl').style.width = Math.min(100, lv * 300) + '%';
+  $('#blProg').style.width = Math.min(100, sec / BL_SECS * 100) + '%';
+  BL.quiet = lv < .01 ? BL.quiet + .2 : 0;
+  if (BL.quiet > 4) { $('#blSt').innerHTML = '<b class="warn">소리가 잘 안 들려요</b> · 소리를 키우거나 폰을 스피커 가까이 대 주세요'; }
+  if (sec >= 5 && sec - BL.last >= 1) {
+    BL.last = sec;
+    const env = m.fl.env, r = tempoOf(env.slice(-Math.round(m.fl.fps * 20)), m.fl.fps);
+    if (r) { BL.auto = r; BL.est.push(r.raw); if (BL.quiet <= 4) blShow(); }
+    const e = BL.est.slice(-4);
+    if ((e.length >= 4 && sec >= 9 && Math.max(...e) - Math.min(...e) < .8) || sec >= BL_SECS) { blMicStop(); toast(BL.auto ? '다 들었어요 · 두드려서 한 번 맞춰 보세요' : '박을 찾지 못했어요 · 두드려서 재 주세요'); }
+  }
+}
+$('#blMic').onclick = () => BL.mic ? blMicStop() : !$('#blab').hidden && blMicStart();
+$('#blTap').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const t = e.timeStamp || performance.now();
+  if (BL.ts.length && t - BL.ts[BL.ts.length - 1] > 2500) BL.ts = [];
+  BL.ts.push(t); if (BL.ts.length > 12) BL.ts.shift();
+  const a = $('#blTap'); a.classList.add('hit'); clearTimeout(BL.flashT); BL.flashT = setTimeout(() => a.classList.remove('hit'), 90);
+  try { navigator.vibrate && navigator.vibrate(8); } catch (err) {}
+  const r = tapBpm(BL.ts); if (r) { BL.tap = r; BL.man = null; }
+  $('#blTapN').textContent = r ? `${r.bpm} · ${BL.ts.length}번` : BL.ts.length === 1 ? '계속 두드리세요' : '조금 더';
+  blShow();
+});
+$('#blTap').addEventListener('contextmenu', e => e.preventDefault());
+$('#blCancel').onclick = () => closeBpmLab();
+$('#blApply').onclick = () => { const v = blPick(); if (!v) return; if (BL.cb && BL.cb.apply) BL.cb.apply(clamp(v, 20, 300)); toast(`${v} BPM으로 정했어요`); closeBpmLab(); };
 
 /* ================= 시작 ================= */
 layout(); renderHome(); show('home');
