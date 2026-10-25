@@ -930,7 +930,7 @@ document.addEventListener('keydown', e => {
 }, true);
 
 /* ================= 오디오 / 박 엔진 ================= */
-const E = {ctx:null, master:null, noise:null, playing:false, start:0, spb:.5, n:0, sub:0};
+const E = {ctx:null, master:null, noise:null, playing:false, start:0, spb:.5, n:0, sub:0, tok:0};
 function ensureCtx() {
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
   if (!E.ctx) {
@@ -941,6 +941,8 @@ function ensureCtx() {
     for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
     E.noise = buf;
     const s = E.ctx.createBufferSource(); s.buffer = E.ctx.createBuffer(1, 1, 22050); s.connect(E.ctx.destination); s.start(0);
+    // 들리지 않는 아주 작은 신호를 계속 흘려서, 멈춘 동안 폰 오디오 출력이 잠들지 않게 (다시 누르면 바로 소리)
+    try { const k = E.ctx.createConstantSource(), g = E.ctx.createGain(); g.gain.value = 1e-6; k.connect(g); g.connect(E.ctx.destination); k.start(); } catch (e) {}
   }
   if (E.ctx.state !== 'running') E.ctx.resume();
   return E.ctx;
@@ -990,16 +992,24 @@ let worker = null;
 try { worker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),25)'], {type:'text/javascript'}))); worker.onmessage = schedule; }
 catch (e) { setInterval(schedule, 25); }
 
+// 누르면 바로: 첫 박은 지금부터 30ms 뒤(오디오가 받아 갈 최소 여유), 바로 예약. 같이 맞추는 리더만 기기들이 받을 시간 0.6초
 function start() {
   if (!song()) return;
-  ensureCtx();
-  const lead = window.__syncReady && SY.role === 'leader' && SY.conns.length ? .6 : .15;
-  E.spb = 60 / P.bpm; E.start = E.ctx.currentTime + lead; E.n = 0; E.sub = 0; E.playing = true; P.barOff = 0;
+  const c = ensureCtx(), tok = ++E.tok;
+  E.spb = 60 / P.bpm; E.start = Infinity; E.n = 0; E.sub = 0; E.playing = true; P.barOff = 0;
   E.song = JSON.parse(JSON.stringify(song()));
   Object.assign(LG, {combo:0, best:0, t:0, lastN:-9});
-  updPlayBtn(); onTiming();
+  updPlayBtn();
+  const go = () => {
+    if (tok !== E.tok || !E.playing) return;
+    const lead = window.__syncReady && SY.role === 'leader' && SY.conns.length ? .6 : .03;
+    E.start = E.ctx.currentTime + lead; schedule(); onTiming();
+  };
+  // 오디오가 쉬고 있었으면(앱 전환 등) 깨어난 시각 기준으로 시작
+  if (c.state !== 'running') { const p = c.resume(); if (p && p.then) { p.then(go, go); return; } }
+  go();
 }
-function stop() { const was = E.playing; E.playing = false; E.song = null; updPlayBtn(); onTiming(); if (was && LG.best >= 8) { toast(`최고 ${LG.best} 콤보!`); LG.best = 0; } }
+function stop() { const was = E.playing; E.playing = false; E.tok++; E.song = null; updPlayBtn(); onTiming(); if (was && LG.best >= 8) { toast(`최고 ${LG.best} 콤보!`); LG.best = 0; } }
 // 재생 중 박을 낼 때 쓰는 곡 설정: 연주 중 편집해도 박자·카운트인은 다음 시작부터 바뀜 (BPM은 P.bpm)
 const eSong = () => (E.playing && E.song) || song();
 // 지금 스피커로 나오고 있는 소리의 시각(오디오 시계 기준). getOutputTimestamp로 끊김 없이 이어서 계산
@@ -2241,7 +2251,7 @@ function renderSettings() {
     <p class="note">불러온 콘티는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v3.0 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
+    <p class="note" style="color:var(--dim)">카운트인 v3.1 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -2639,7 +2649,7 @@ function startAtLeader(t0Local, bpm) {
   const spb = 60 / bpm, ns = outNow() + (t0Local - performance.now()) / 1000;
   if (E.playing && Math.abs(spb - E.spb) < 1e-6 && Math.abs(ns - E.start) < .015) return;
   const was = E.playing;
-  E.spb = spb; E.start = ns; E.n = Math.max(0, Math.ceil((E.ctx.currentTime + .01 - E.start) / E.spb)); E.sub = 0; E.playing = true;
+  E.tok++; E.spb = spb; E.start = ns; E.n = Math.max(0, Math.ceil((E.ctx.currentTime + .01 - E.start) / E.spb)); E.sub = 0; E.playing = true;
   if (!was) E.song = JSON.parse(JSON.stringify(song()));
   if (!was) P.barOff = 0;
   P.bpm = bpm; updBpm(); updPlayBtn();
@@ -3093,6 +3103,8 @@ $('#bCheck').onclick = openCheck;
 })();
 
 // 점검용: 지금 박 위치·BPM 읽기 (화면에는 영향 없음)
+// 재생 화면에서 처음 화면을 만지는 순간 오디오를 미리 깨워 둠 → 첫 시작도 바로 (다른 앱 음악을 끊지 않게 재생 화면에서만)
+document.addEventListener('pointerdown', () => { if (!$('#scrPlay').hidden && !E.ctx) ensureCtx(); }, true);
 window.__countin = {beat:() => beatNow(), bpm:() => P.bpm, offset:() => SY.offset, rtt:() => SY.rtt};
 
 /* ================= 시작 ================= */
