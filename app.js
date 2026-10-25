@@ -31,6 +31,10 @@ const ICONS = {
   chevL:`<path d="M14.5 5.5L8 12l6.5 6.5"/>`,
   chevR:`<path d="M9.5 5.5L16 12l-6.5 6.5"/>`,
   list:`<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>`,
+  user:`<circle cx="12" cy="8.5" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>`,
+  google:`<path d="M19.5 12h-7M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/>`,
+  music:`<path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/>`,
+  ext:`<path d="M13.5 5H19v5.5M19 5l-8 8"/><path d="M17 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 4 18.5v-10A1.5 1.5 0 0 1 5.5 7H10"/>`,
   chevD:`<path d="M6.5 9.5L12 15l5.5-5.5"/>`,
 };
 const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -44,7 +48,7 @@ const VIS = [['pulse','원'],['lane','레인'],['flash','플래시'],['pend','�
 const VISD = {pulse:'원이 박마다 커졌다 줄어요', lane:'리듬게임처럼 박이 흘러와요 · 박에 맞춰 두드리면 판정', flash:'화면 전체가 박마다 번쩍', pend:'진자가 좌우로 흔들려요', bounce:'공이 박 칸을 건너뛰어요', count:'지금 박 번호를 크게', edge:'화면 테두리가 빛나요 · 악보와 같이'};
 const SOUNDS = [['wood','우드블록'],['beep','비프'],['cow','카우벨'],['stick','사이드스틱']];
 function newSong(o = {}) {
-  return Object.assign({id:uid(), title:'', bpm:100, num:4, den:4, pulse:'eighth', sub:'none', countIn:2, muteAfter:false, accent:true, visual:null, memo:'', sheet:null, follow:null}, o);
+  return Object.assign({id:uid(), title:'', bpm:100, num:4, den:4, pulse:'eighth', sub:'none', countIn:2, muteAfter:false, accent:true, visual:null, memo:'', sheet:null, follow:null, tone:'', ref:null}, o);
 }
 // 밖에서 들어온 값(백업·링크·연동)도 화면이 감당할 범위로: 박자 1~32, BPM 20~300, 글자 길이 제한
 const str = (v, n) => String(v ?? '').slice(0, n);
@@ -56,8 +60,23 @@ function cleanSong(s) {
   s.muteAfter = !!s.muteAfter; s.accent = s.accent !== false;
   if (s.visual && !VIS.some(v => v[0] === s.visual)) s.visual = null;
   if (s.follow && !['on', 'off'].includes(s.follow)) s.follow = null;
+  // 예전엔 키를 메모 앞에 "G키"로 적었음 → 코드 칸으로 옮김
+  if (!s.tone) { const m = s.memo.match(/^([A-G][#♯b♭]?m?(?:→[A-G][#♯b♭]?m?)*)키(?:\s*·\s*)?/); if (m) { s.tone = m[1]; s.memo = s.memo.slice(m[0].length); } }
+  s.tone = cleanTone(s.tone); s.ref = cleanRef(s.ref);
   return s;
 }
+// 코드(키): "G", "Bm", "D→E" 처럼 짧게
+const cleanTone = t => str(t, 12).replace(/♯/g, '#').replace(/♭/g, 'b').replace(/\s+/g, '').replace(/->|>|~/g, '→');
+// 링크: http(s)만, 유튜브면 영상 id도
+const isUrl = u => /^https?:\/\/[^\s<>"']+$/i.test(u);
+const ytId = u => { const m = String(u || '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|live\/|embed\/))([\w-]{11})/); return m ? m[1] : null; };
+function cleanRef(r) {
+  if (typeof r === 'string') r = {u:r};
+  if (!r || typeof r !== 'object') return null;
+  const u = str(r.u, 300).trim(); if (!isUrl(u)) return null;
+  return {u, v:ytId(u), n:str(r.n, 100)};
+}
+const cleanUrl = u => { u = str(u, 300).trim(); return isUrl(u) ? u : ''; };
 const cleanSongs = a => (Array.isArray(a) ? a : []).filter(x => x && typeof x === 'object').slice(0, 300).map(x => cleanSong(newSong(x)));
 function seed() {
   const s = {id:uid(), name:'예시 콘티', songs:[
@@ -72,7 +91,7 @@ function seed() {
 // 곡(sheet)은 {items:[{key, page}]}로 여러 PDF의 쪽을 순서대로 가리킴 (page 0 = 그 PDF 전체)
 function fix(d) {
   d.settings = Object.assign({...DEF_SET}, d.settings || {});
-  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:str(x.name || '콘티', 60), pdfs:Array.isArray(x.pdfs) ? x.pdfs.slice(0, 50).map(k => str(k, 80)) : [], marks:x.marks && typeof x.marks === 'object' ? x.marks : {}, ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true, cue:true}, x.ctl || {}), linked:x.linked || null, shareFrom:x.shareFrom || null, followUI:typeof x.followUI === 'boolean' ? x.followUI : !!(x.linked || x.shareFrom), songs:cleanSongs(x.songs)}));
+  d.setlists = (d.setlists || []).filter(x => x && Array.isArray(x.songs)).map(x => ({id:x.id || uid(), name:str(x.name || '콘티', 60), pdfs:Array.isArray(x.pdfs) ? x.pdfs.slice(0, 50).map(k => str(k, 80)) : [], marks:x.marks && typeof x.marks === 'object' ? x.marks : {}, ctl:Object.assign({on:true, start:true, song:true, page:true, bpm:true, cue:true}, x.ctl || {}), linked:x.linked || null, shareFrom:x.shareFrom || null, followUI:typeof x.followUI === 'boolean' ? x.followUI : !!(x.linked || x.shareFrom), plist:cleanUrl(x.plist), songs:cleanSongs(x.songs)}));
   d.setlists.forEach(x => { if (x.name === '예시 셋리스트' || x.name === '예시 프로' + '젝트') x.name = '예시 콘티'; });
   if (!d.setlists.some(x => x.id === d.cur)) d.cur = d.setlists.length ? d.setlists[0].id : null;
   d.practice = Array.isArray(d.practice) ? d.practice.slice(-30) : [];
@@ -95,7 +114,7 @@ function fix(d) {
 }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.setlists) return fix(d); } catch (e) {} return fix(seed()); }
 let D = load();
-function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { toast('저장 공간이 부족해서 저장하지 못했어요'); } if (window.__syncReady) syncProjChanged(); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { toast('저장 공간이 부족해서 저장하지 못했어요'); } if (window.__syncReady) syncProjChanged(); if (window.__cloudReady) cloudSoon(); }
 save();
 if (!D.settings.devId) { D.settings.devId = uid(); save(); }
 const curSL = () => D.setlists.find(x => x.id === D.cur) || D.setlists[0];
@@ -137,7 +156,7 @@ function sheetLabel(items, withName) {
   const one = new Set(items.map(it => it.key)).size === 1;
   return g.map(x => { const pl = x.pages.includes(0) ? '전체 쪽' : pagesLabel(x.pages), L = libOf(x.key); return one && !withName ? pl : `${L ? L.name : '악보'} ${pl}`; }).join(' + ');
 }
-const meta = s => [s.sheet ? '악보 ' + sheetLabel(s.sheet.items) : '', sigL(s), SUBL[s.sub], s.countIn ? `카운트 ${s.countIn}마디` : '', s.memo].filter(Boolean).join(' · ');
+const meta = s => [s.ref ? '♪' : '', s.sheet ? '악보 ' + sheetLabel(s.sheet.items) : '', sigL(s), SUBL[s.sub], s.countIn ? `카운트 ${s.countIn}마디` : '', s.memo].filter(Boolean).join(' · ');
 
 /* ================= 공통 UI ================= */
 // 알림 띠: 결과가 화면에 보이면 띄우지 않음. 오류·경고·연동 소식과 되돌리기만.
@@ -541,7 +560,8 @@ async function gcSheets() {
 const DOCS = new Map();
 function getDoc(key) {
   if (!DOCS.has(key)) DOCS.set(key, (async () => {
-    const buf = await IDB.get(key);
+    let buf = await IDB.get(key);
+    if (!buf && window.__cloudReady) buf = await cloudPdf(key);   // 다른 기기에서 넣은 악보는 계정에서 받아 옴
     if (!buf) throw new Error('missing');
     const lib = await loadPdfJs();
     const doc = await lib.getDocument({data:new Uint8Array(buf), isEvalSupported:false}).promise;
@@ -874,13 +894,16 @@ function renderList() {
   $('#slSub').textContent = `${syncTag(sl)}${sl.songs.length}곡${sl.pdfs.length ? ` · PDF ${sl.pdfs.length}개` : ''}`;
   const ul = $('#songList'), cur = -1;
   ul.innerHTML = sl.songs.map((s, i) => `<li data-i="${i}"${i === cur ? ' class="cur"' : ''}>
-    <button class="row" data-act="play"><span class="i">${i + 1}</span><span class="mid"><span class="tt">${esc(s.title) || '제목 없음'}</span><span class="mm">${miniLamp(s)}<span class="mt">${esc(meta(s))}</span></span></span><span class="b num">${s.bpm}<small>BPM</small></span></button>
+    <button class="row" data-act="play"><span class="i">${i + 1}</span><span class="mid"><span class="tt">${esc(s.title) || '제목 없음'}${s.tone ? `<span class="tonechip">${esc(s.tone)}</span>` : ''}</span><span class="mm">${miniLamp(s)}<span class="mt">${esc(meta(s))}</span></span></span><span class="b num">${s.bpm}<small>BPM</small></span></button>
     <button class="more" data-act="edit" aria-label="편집">${ic('more')}</button></li>`).join('')
     + (sl.songs.length > 1 ? '<li class="tip">꾹 눌러 끌면 순서를 바꿀 수 있어요</li>' : '');
   const empty = !sl.songs.length;
   $('#emptyList').hidden = !empty; ul.hidden = empty;
   $('#bStart').disabled = empty;
   $('#bStart').textContent = sl.followUI ? '따라가기 시작' : '1번부터 시작';
+  const nr = sl.songs.filter(x => x.ref).length;
+  $('#plistLbl').textContent = sl.plist ? '재생목록' : nr ? `재생목록 · ${nr}/${sl.songs.length}곡` : '재생목록 만들기';
+  $('.lbar').hidden = empty;
 }
 // 박 램프 미리보기: 첫 박은 넓고 빨간 칸, 6/8·12/8은 셋씩 묶음
 const grouped = s => s.den === 8 && s.num % 3 === 0 && !isDotted(s) && s.num > 3;
@@ -939,7 +962,7 @@ function applySheet() {
 function renderPlay() {
   const s = song(), list = curSL().songs; if (!s) return;
   $('#pTitle').textContent = s.title || '제목 없음';
-  $('#pSub').textContent = `${syncTag(curSL())}${P.i + 1} / ${list.length} · ${sigL(s)}${SUBL[s.sub] ? ' · ' + SUBL[s.sub] : ''}${s.countIn ? ' · 카운트 ' + s.countIn : ''}${s.muteAfter ? ' · 이후 무음' : ''}`;
+  $('#pSub').textContent = `${syncTag(curSL())}${P.i + 1} / ${list.length}${s.tone ? ' · ' + s.tone + '키' : ''} · ${sigL(s)}${SUBL[s.sub] ? ' · ' + SUBL[s.sub] : ''}${s.countIn ? ' · 카운트 ' + s.countIn : ''}${s.muteAfter ? ' · 이후 무음' : ''}`;
   $('#pMemo').hidden = !s.memo; $('#pMemo').textContent = s.memo;
   const nx = list[P.i + 1];
   $('#pNext').innerHTML = nx ? `다음 <b>${esc(nx.title || '제목 없음')}</b> <span class="num">${nx.bpm}</span>` : '마지막 곡이에요';
@@ -1190,6 +1213,12 @@ H.close = () => { if (sheetKind === 'editor' && !edGuard()) return; closeSheet()
 /* ---------- 곡 편집 ---------- */
 let draft = null, draftIdx = -1, delArm = false;
 const SIGS = [[2, 4], [3, 4], [4, 4], [6, 8], [12, 8]];
+document.addEventListener('input', e => {
+  if (e.target.id !== 'fRef' || sheetKind !== 'editor') return;
+  if (!ytId(e.target.value)) return;   // 유튜브 링크를 통째로 붙여넣었을 때만 바로 (치는 중엔 저장할 때)
+  syncDraft(); const r = draft.ref; const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st;
+  refTitle(draft.ref).then(() => { if (sheetKind === 'editor' && draft && draft.ref === r) { const s2 = sheet.scrollTop; renderEditor(); sheet.scrollTop = s2; } });
+});
 function openEditor(i) {
   const songs = curSL().songs;
   draftIdx = i; delArm = false;
@@ -1214,8 +1243,24 @@ function syncDraft() {
   if (v('fTitle') !== null) draft.title = v('fTitle');
   if (v('fBpm') !== null) draft.bpm = clamp(parseInt(v('fBpm'), 10) || draft.bpm, 20, 300);
   if (v('fMemo') !== null) draft.memo = v('fMemo');
+  if (v('fTone') !== null) draft.tone = cleanTone(v('fTone'));
+  if (v('fRef')) { const r = cleanRef(v('fRef')); if (r) { draft.ref = r; const el = $('#fRef'); if (el) el.value = ''; } }
   if (v('fNum') !== null) draft.num = clamp(parseInt(v('fNum'), 10) || draft.num, 1, 16);
   if (v('fDen') !== null) draft.den = +v('fDen');
+}
+const KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+const toneBase = t => { const m = String(t || '').match(/^([A-G][#b]?)/); return m && !/→/.test(t) ? m[1] : t ? '_' : ''; };
+// 레퍼런스 카드: 유튜브면 썸네일, 누르면 열림
+const refCard = (r, extra = '') => `<div class="refcard">${r.v ? `<img src="https://i.ytimg.com/vi/${r.v}/mqdefault.jpg" alt="" loading="lazy">` : `<span class="refic">${ic('music')}</span>`}
+  <span class="rt"><b>${esc(r.n || (r.v ? '유튜브 영상' : r.u.replace(/^https?:\/\//, '').slice(0, 40)))}</b><small>${r.v ? 'YouTube' : esc(r.u.replace(/^https?:\/\/(www\.)?/, '').split('/')[0])}</small></span>
+  <button type="button" class="pill" data-act="openUrl" data-u="${esc(r.u)}">듣기</button>${extra}</div>`;
+function openExt(u) { if (isUrl(u)) window.open(u, '_blank', 'noopener'); }
+const ytSearch = s => 'https://www.youtube.com/results?search_query=' + encodeURIComponent([s.title, s.tone ? s.tone + ' key' : ''].filter(Boolean).join(' '));
+// 유튜브 영상 제목 가져오기 (oEmbed, 실패하면 제목 없이)
+async function refTitle(r) {
+  if (!r || r.n || !r.v || !navigator.onLine) return r;
+  try { const j = await (await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + r.v))).json(); r.n = str(j.title, 100); } catch (e) {}
+  return r;
 }
 function renderEditor() {
   const d = draft, sigCur = d._custom ? 'custom' : `${d.num}/${d.den}`;
@@ -1230,6 +1275,9 @@ function renderEditor() {
       <input id="fBpm" type="number" inputmode="numeric" min="20" max="300" value="${d.bpm}" aria-label="BPM"${dis}>
       <button type="button" class="rbtn" data-act="bpm" data-v="1" aria-label="BPM 올리기"${dis}>+</button>
       <button type="button" class="tapbtn" data-act="tap" id="fTap"${dis}>두드려서 재기</button></div></div>
+    <div class="fld"><span>코드 (키)</span>
+      <div class="kchips" role="group" aria-label="코드 고르기">${['', ...KEYS].map(k => `<button type="button" class="kchip" data-act="keyPick" data-v="${k}" aria-pressed="${toneBase(d.tone) === k}"${dis}>${k || '없음'}</button>`).join('')}<button type="button" class="kchip" data-act="keyMinor" aria-pressed="${/^[A-G][#b]?m/.test(d.tone)}"${dis || (d.tone ? '' : ' disabled')}>m 단조</button></div>
+      <input id="fTone" class="inp" type="text" value="${esc(d.tone)}" placeholder="직접 쓰기 · 예: D→E, F#m" maxlength="12" autocomplete="off"${dis}></div>
     ${seg('sig', '박자', [...SIGS.map(([n, de]) => [`${n}/${de}`, `${n}/${de}`]), ['custom', '직접']], sigCur, LK)}
     ${d._custom ? `<div class="row2"><input id="fNum" class="inp num" type="number" inputmode="numeric" min="1" max="16" value="${d.num}" aria-label="한 마디 박 수"><span style="flex:0;color:var(--mute)">/</span>
       <select id="fDen" class="inp" aria-label="박 단위">${[2, 4, 8, 16].map(x => `<option value="${x}" ${x === d.den ? 'selected' : ''}>${x}</option>`).join('')}</select></div>` : ''}
@@ -1240,6 +1288,10 @@ function renderEditor() {
     ${tgl('accent', '첫 박 강조', d.accent)}
     ${seg('visual', '이 곡 비주얼', [['', '기본'], ...VIS], d.visual || '')}
     ${seg('follow', '같이 맞출 때 이 곡은 리더를', [['', '콘티 설정대로'], ['on', '따라가기'], ['off', '따라가지 않기']], d.follow || '')}
+    <div class="fld"><span>레퍼런스 곡</span>
+      ${d.ref ? refCard(d.ref, LK ? '' : '<button type="button" class="pill danger" data-act="refDel">빼기</button>') : ''}
+      ${LK ? (d.ref ? '' : '<p class="note">리더가 넣은 레퍼런스가 없어요.</p>') : `<div class="row2"><input id="fRef" class="inp" type="url" inputmode="url" placeholder="${d.ref ? '다른 링크로 바꾸기' : '유튜브 링크 붙여넣기'}" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="refFind">유튜브에서 찾기</button></div>`}
+    </div>
     <label class="fld"><span>메모</span><input id="fMemo" type="text" value="${esc(d.memo)}" placeholder="예: 브릿지 하프타임" maxlength="40" autocomplete="off"></label>
     ${(() => { const sh = d.sheet;
       const txt = sh ? esc(sheetLabel(sh.items, true)) : '없음';
@@ -1250,6 +1302,11 @@ function renderEditor() {
     ${draftIdx >= 0 ? `<div class="sh-actions"><button type="button" data-act="dupSong">복제</button><button type="button" class="danger" data-act="delSong">${delArm ? '한 번 더 누르면 삭제' : '삭제'}</button></div>` : ''}
   </div>`;
 }
+H.keyPick = b => { syncDraft(); const k = b.dataset.v, minor = /^[A-G][#b]?m/.test(draft.tone); draft.tone = k ? k + (minor ? 'm' : '') : ''; const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st; };
+H.keyMinor = () => { syncDraft(); const m = draft.tone.match(/^([A-G][#b]?)(m?)(.*)$/); if (!m) return; draft.tone = m[1] + (m[2] ? '' : 'm') + m[3]; const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st; };
+H.refFind = () => { syncDraft(); openExt(ytSearch(draft)); toast('영상 주소를 복사해서 레퍼런스 칸에 붙여넣으세요'); };
+H.refDel = () => { syncDraft(); draft.ref = null; const st = sheet.scrollTop; renderEditor(); sheet.scrollTop = st; };
+H.openUrl = b => openExt(b.dataset.u);
 H.seg = b => {
   const k = b.parentElement.dataset.k, v = b.dataset.v;
   if (sheetKind === 'settings') return setSeg(k, v, b);
@@ -1515,6 +1572,7 @@ function renderSettings() {
   sheet.innerHTML = `<div class="grab"></div>
   <div class="sh-head"><span></span><h2>설정</h2><button class="txtbtn" data-act="close">닫기</button></div>
   <div class="sh-body">
+    ${cloudReady() ? `<button type="button" class="librow acctrow" data-act="acct" style="text-align:left"><span class="nm"><b>${CL.user ? esc(CL.user.email) : '계정 · 구글 로그인'}</b><small>${CL.user ? esc(acctLine()) : '로그인하면 콘티·악보가 계정에 저장돼요'}</small></span>${ic('chevR')}</button>` : ''}
     ${seg('visual', '기본 비주얼', VIS, S.visual)}
     ${seg('sound', '클릭 소리', SOUNDS, S.sound)}
     <button type="button" class="pill" data-act="preview" style="align-self:flex-start">▶ 들어보기</button>
@@ -1541,7 +1599,7 @@ function renderSettings() {
     <p class="note">불러온 콘티는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v3.3 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
+    <p class="note" style="color:var(--dim)">카운트인 v3.4 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -1709,7 +1767,7 @@ function coverCanvas(p) {
   p.songs.forEach((s, j) => {
     if (y > H - 120) return;
     g.fillStyle = '#111'; g.font = `700 34px ${BODYF}`; g.fillText(`${j + 1}. ${s.title || '제목 없음'}`, 90, y);
-    g.font = `800 34px ${BODYF}`; g.textAlign = 'right'; g.fillText(`${s.bpm} BPM`, 1150, y); g.textAlign = 'left';
+    g.font = `800 34px ${BODYF}`; g.textAlign = 'right'; g.fillText(`${s.tone ? s.tone + '  ·  ' : ''}${s.bpm} BPM`, 1150, y); g.textAlign = 'left';
     g.font = `400 24px ${BODYF}`; g.fillStyle = '#666';
     g.fillText([sigL(s), SUBL[s.sub], s.countIn ? `카운트 ${s.countIn}마디` : '', s.memo, s.sheet ? '' : '악보 없음'].filter(Boolean).join(' · '), 128, y + 46);
     y += 104;
@@ -1869,7 +1927,7 @@ function nextJoin() {
 }
 function projSnap() {
   const p = D.setlists.find(x => x.id === SY.projId); if (!p) return null;
-  return {id:p.id, name:p.name, pdfs:[...p.pdfs], ctl:{...p.ctl}, songs:p.songs.map(s => JSON.parse(JSON.stringify(s))), lib:p.pdfs.map(libOf).filter(Boolean)};
+  return {id:p.id, name:p.name, plist:p.plist || '', pdfs:[...p.pdfs], ctl:{...p.ctl}, songs:p.songs.map(s => JSON.parse(JSON.stringify(s))), lib:p.pdfs.map(libOf).filter(Boolean)};
 }
 function sendProj(conn) {
   const sn = projSnap(); if (!sn) return;
@@ -1946,7 +2004,7 @@ async function applyProj(sn, leader) {
   if (!p) { p = {id, marks:{}}; D.setlists.unshift(p); }
   const pdfs = (Array.isArray(sn.pdfs) ? sn.pdfs : []).slice(0, 50).map(k => str(k, 80)), C = sn.ctl && typeof sn.ctl === 'object' ? sn.ctl : {};
   const ctl = {}; ['on', 'start', 'song', 'page', 'bpm', 'cue'].forEach(k => { ctl[k] = C[k] !== false; });
-  Object.assign(p, {name:str(sn.name || '받은 콘티', 60), pdfs, ctl, songs:mergeSongs(p.songs, cleanSongs(sn.songs)), linked:{leader:str(leader || '리더', 20)}});
+  Object.assign(p, {name:str(sn.name || '받은 콘티', 60), pdfs, ctl, songs:mergeSongs(p.songs, cleanSongs(sn.songs)), plist:cleanUrl(sn.plist), linked:{leader:str(leader || '리더', 20)}});
   if (typeof p.followUI !== 'boolean') p.followUI = true;
   SY.projId = id; SY.leader = p.linked.leader;
   const need = [];
@@ -2089,8 +2147,22 @@ function parseConti(text) {
   const lines = String(text || '').split(/\r?\n/).map(l => l.replace(/​/g, '').trim()).filter(Boolean);
   const NUM = /^(?:\d{1,2}\s*[.)\]:．、]|[①-⑳]|[-•·*▶►▷○●])\s*/;
   const numbered = lines.some(l => NUM.test(l));
-  let header = ''; const items = [];
+  let header = '', plist = ''; const items = [];
+  const URL_RE = /https?:\/\/[^\s<>"')\]]+/g;
   lines.forEach((l, i) => {
+    // 링크만 있는 줄: 재생목록이면 콘티에, 영상이면 바로 위 곡의 레퍼런스로
+    // 카운트인 링크·임시 이어 듣기 링크는 무시 (곡별 레퍼런스로 다시 만들어짐)
+    const urls = (l.match(URL_RE) || []).filter(u => !/#c=|count-in|watch_videos/.test(u));
+    if (/#c=|count-in|watch_videos/.test(l) && !urls.length) return;
+    if (urls.length && (!l.replace(URL_RE, '').replace(NUM, '').trim() || (numbered && !NUM.test(l)))) {
+      urls.forEach(u => { const last = items[items.length - 1];
+        if (!ytId(u) && /list=|playlist|album|melon\.com|music\.apple|spotify/i.test(u)) { if (!plist) plist = u; }
+        else if (last && !last.ref) last.ref = u;
+        else if (!plist && /list=/.test(u)) plist = u; });
+      return;
+    }
+    let ref = null;
+    if (urls.length) { ref = urls.find(ytId) || urls[0]; l = l.replace(URL_RE, ' ').trim(); }
     const song = numbered ? NUM.test(l) : !(i === 0 && /콘티|예배|주일|찬양|집회|수련회|\d{1,2}\s*[\/.월]\s*\d{1,2}/.test(l));
     if (!song) { if (!header) header = l.replace(/[<>\[\]【】]/g, '').trim().slice(0, 40); return; }
     let t = l.replace(NUM, ''), key = null, bpm = null;
@@ -2099,9 +2171,9 @@ function parseConti(text) {
     const bm = t.match(/(?:bpm|♩\s*=?|템포)\s*:?\s*(\d{2,3})/i) || t.match(/(\d{2,3})\s*bpm/i) || t.match(/(?:^|\s|[-/·|])(\d{2,3})\s*$/);
     if (bm && +bm[1] >= 30 && +bm[1] <= 260) { bpm = +bm[1]; t = t.replace(bm[0], ' '); }
     t = t.replace(/\s*[-–—|·/]+\s*$/, '').replace(/\s{2,}/g, ' ').trim();
-    if (t) items.push({title:t, key, bpm});
+    if (t) items.push({title:t, key, bpm, ref});
   });
-  return {header, items};
+  return {header, items, plist};
 }
 const normT = t => String(t || '').replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase();
 // 예전에 쓴 같은 곡 (제목 기준, 위쪽 콘티 우선)
@@ -2133,7 +2205,7 @@ function renderPasteList() {
   $('#pasteGo').textContent = on ? `${on}곡 넣기` : '넣기';
   $('#pasteList').innerHTML = rows.length ? rows.map((r, i) => `<div class="prow${r.on ? '' : ' off'}">
       <button type="button" class="pchk" data-act="pasteTog" data-k="${esc(r.k)}" aria-pressed="${r.on}" aria-label="${esc(r.title)} 넣기">${r.on ? '✓' : ''}</button>
-      <div style="min-width:0"><b>${i + 1}. ${esc(r.title)}</b><small class="${r.past ? 'past' : ''}">${[r.key ? r.key + '키' : '', r.past ? `지난번 ${r.past.bpm} BPM${r.past.sheet ? ' · 악보' : ''}` : '새 곡'].filter(Boolean).join(' · ')}</small></div>
+      <div style="min-width:0"><b>${i + 1}. ${esc(r.title)}</b><small class="${r.past ? 'past' : ''}">${[r.key ? r.key + '키' : '', r.ref ? '♪ 레퍼런스' : '', r.past ? `지난번 ${r.past.bpm} BPM${r.past.sheet ? ' · 악보' : ''}` : '새 곡'].filter(Boolean).join(' · ')}</small></div>
       <input type="number" inputmode="numeric" min="30" max="260" placeholder="BPM" value="${r.bpm || ''}" data-k="${esc(r.k)}" aria-label="${esc(r.title)} BPM">
     </div>`).join('') : '<p class="note">번호(1. 2. …)가 붙은 줄을 곡으로 읽어요. 괄호 안 키(G)와 줄 끝 숫자(BPM)도 알아서 골라내요.</p>';
   $('#pasteList').querySelectorAll('input').forEach(inp => inp.addEventListener('change', e => { const k = e.target.dataset.k; PS.edits[k] = {...(PS.edits[k] || {}), bpm:clamp(+e.target.value || 0, 0, 260) || null}; }));
@@ -2144,19 +2216,74 @@ H.pasteAdd = () => {
   if (!rows.length) { toast('넣을 곡이 없어요'); return; }
   const noBpm = rows.filter(r => !r.bpm).length;
   for (const r of rows) {
-    const keyMemo = r.key ? r.key + '키' : '';
     let s;
     if (r.past) {
-      const pm = (r.past.memo || '').replace(/^[A-G][#♯b♭]?m?키(\s*·\s*)?/, '');
-      s = newSong({...JSON.parse(JSON.stringify(r.past)), id:uid(), title:r.title, bpm:r.bpm || r.past.bpm, memo:[keyMemo, pm].filter(Boolean).join(' · ')});
+      s = newSong({...JSON.parse(JSON.stringify(r.past)), id:uid(), title:r.title, bpm:r.bpm || r.past.bpm});
       if (s.sheet) s.sheet.items.forEach(it => { if (!p.pdfs.includes(it.key) && libOf(it.key)) p.pdfs.push(it.key); });
-    } else s = newSong({title:r.title, bpm:r.bpm || 100, memo:keyMemo});
-    p.songs.push(s);
+    } else s = newSong({title:r.title, bpm:r.bpm || 100});
+    if (r.key) s.tone = r.key;          // 이번 콘티의 키가 우선
+    if (r.ref) s.ref = r.ref;
+    p.songs.push(cleanSong(s));
   }
+  const pl = cleanUrl(parseConti(PS.text).plist); if (pl && !p.plist) p.plist = pl;
   save(); closeSheet(); renderList();
+  p.songs.forEach(x => { if (x.ref && x.ref.v && !x.ref.n) refTitle(x.ref).then(() => save()); });
   if (noBpm) toast(`새 곡 ${noBpm}개는 100 BPM으로 넣었어요 · 곡을 눌러 고쳐 주세요`);
 };
 $('#bPaste').onclick = () => openPaste('');
+
+/* ================= 콘티 재생목록 (레퍼런스 곡 → 유튜브 이어 듣기) ================= */
+// 곡마다 넣은 유튜브 레퍼런스로 로그인 없이 열리는 임시 재생목록을 만들고, 원하면 내 재생목록 링크를 콘티에 붙임
+const autoList = p => { const ids = p.songs.map(s => s.ref && s.ref.v).filter(Boolean).slice(0, 50); return ids.length ? 'https://www.youtube.com/watch_videos?video_ids=' + ids.join(',') : ''; };
+const PL = {ref:-1};
+function openPlist() { PL.ref = -1; renderPlist(); openSheet('plist'); }
+function renderPlist() {
+  const p = curSL(); if (!p) return;
+  const LK = !!p.linked, auto = autoList(p), nr = p.songs.filter(s => s.ref).length, ny = p.songs.filter(s => s.ref && s.ref.v).length;
+  if (PL.ref >= 0) {
+    const s2 = p.songs[PL.ref]; if (!s2) { PL.ref = -1; return renderPlist(); }
+    sheet.innerHTML = `<div class="grab"></div>
+    <div class="sh-head"><button class="txtbtn" data-act="plBack">뒤로</button><h2>레퍼런스</h2><span style="width:48px"></span></div>
+    <div class="sh-body">
+      <p class="acctlead">${PL.ref + 1}. ${esc(s2.title || '제목 없음')}${s2.tone ? ` <span class="tonechip">${esc(s2.tone)}</span>` : ''}</p>
+      ${s2.ref ? refCard(s2.ref, '<button type="button" class="pill danger" data-act="plRefDel">빼기</button>') : ''}
+      <button type="button" class="btn2" data-act="plFind" style="align-self:flex-start">${ic('ext')}유튜브에서 찾기</button>
+      <p class="note">마음에 드는 영상에서 공유 → 링크 복사 후 아래에 붙여넣으세요.</p>
+      <div class="row2"><input id="plRefIn" class="inp" type="url" inputmode="url" placeholder="${s2.ref ? '다른 링크로 바꾸기' : '유튜브 링크 붙여넣기'}" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="plRefSave">넣기</button></div>
+    </div>`;
+    return;
+  }
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><span></span><h2>재생목록</h2><button class="txtbtn" data-act="close">닫기</button></div>
+  <div class="sh-body">
+    ${p.plist ? `<button type="button" class="go" data-act="openUrl" data-u="${esc(p.plist)}" style="flex:none">${ic('music')}지정한 재생목록 열기</button>
+      ${ny ? `<button type="button" class="btn2" data-act="openUrl" data-u="${esc(auto)}" style="align-self:flex-start">${ic('ext')}곡 레퍼런스로 이어 듣기 (${ny}곡)</button>` : ''}`
+    : `<button type="button" class="go" data-act="openUrl" data-u="${esc(auto)}" style="flex:none"${ny ? '' : ' disabled'}>${ic('music')}유튜브에서 이어 듣기${ny ? ` · ${ny}곡` : ''}</button>`}
+    <p class="note">${ny ? `레퍼런스가 있는 곡을 콘티 순서대로 이어서 재생해요. 유튜브 로그인 없이 열리는 임시 재생목록이에요.${ny < p.songs.length ? ` 레퍼런스가 없는 ${p.songs.length - ny}곡은 빠져요.` : ''}` : '곡마다 레퍼런스(유튜브 링크)를 넣으면 콘티 순서대로 이어 듣는 재생목록이 저절로 만들어져요.'}</p>
+    <div class="sec-t">곡별 레퍼런스 · ${nr}/${p.songs.length}곡</div>
+    <div class="songpick">${p.songs.map((x, i) => `<div class="plrow"><span class="n">${i + 1}</span><span class="t">${esc(x.title) || '제목 없음'}${x.tone ? ` <span class="tonechip">${esc(x.tone)}</span>` : ''}<small>${x.ref ? esc(x.ref.n || (x.ref.v ? '유튜브 영상' : x.ref.u)) : '레퍼런스 없음'}</small></span>
+      ${x.ref ? `<button type="button" class="pill" data-act="openUrl" data-u="${esc(x.ref.u)}">듣기</button>` : ''}${LK ? '' : `<button type="button" class="pill" data-act="plRef" data-i="${i}">${x.ref ? '바꾸기' : '넣기'}</button>`}</div>`).join('')}</div>
+    <div class="sec-t">재생목록 직접 지정</div>
+    ${LK ? `<p class="note">${p.plist ? '리더가 지정한 재생목록이에요.' : '리더가 지정한 재생목록이 없어요.'}</p>` : `<div class="row2"><input id="plIn" class="inp" type="url" inputmode="url" value="${esc(p.plist || '')}" placeholder="재생목록 링크 붙여넣기" autocomplete="off"><button type="button" class="pill" style="flex:0 0 auto" data-act="plSave">${p.plist ? '바꾸기' : '지정'}</button>${p.plist ? '<button type="button" class="pill danger" style="flex:0 0 auto" data-act="plClear">빼기</button>' : ''}</div>
+    <p class="note">유튜브·유튜브 뮤직·스포티파이·애플 뮤직·멜론 재생목록 링크를 넣으면 이 콘티에 붙어요. 링크·팀 연결로 콘티를 보낼 때 곡별 레퍼런스와 같이 가요.</p>`}
+  </div>`;
+}
+const rerenderPL = () => { const st = sheet.scrollTop; renderPlist(); sheet.scrollTop = st; };
+H.plRef = b => { PL.ref = +b.dataset.i; renderPlist(); sheet.scrollTop = 0; setTimeout(() => { const el = $('#plRefIn'); if (el) el.focus(); }, 200); };
+H.plBack = () => { PL.ref = -1; renderPlist(); };
+H.plFind = () => { const s2 = curSL().songs[PL.ref]; if (s2) { openExt(ytSearch(s2)); toast('영상 링크를 복사해서 붙여넣으세요'); } };
+H.plRefSave = async () => {
+  const s2 = curSL().songs[PL.ref], r = cleanRef(($('#plRefIn') || {}).value || '');
+  if (!s2) return; if (!r) { toast('링크를 확인해 주세요 (https:// 로 시작)'); return; }
+  s2.ref = r; save(); PL.ref = -1; renderPlist(); renderList();
+  await refTitle(r); save(); if (sheetKind === 'plist' && PL.ref < 0) rerenderPL();
+};
+H.plRefDel = () => { const s2 = curSL().songs[PL.ref]; if (!s2) return; s2.ref = null; save(); PL.ref = -1; renderPlist(); renderList(); };
+H.plSave = () => { const u = cleanUrl(($('#plIn') || {}).value || ''); if (!u) { toast('링크를 확인해 주세요 (https:// 로 시작)'); return; } curSL().plist = u; save(); rerenderPL(); renderList(); toast('이 콘티에 재생목록을 붙였어요'); };
+H.plClear = () => { curSL().plist = ''; save(); rerenderPL(); renderList(); };
+$('#bPlist').onclick = openPlist;
+// 붙여넣으면 바로 넣기
+document.addEventListener('input', e => { if (e.target.id === 'plRefIn' && ytId(e.target.value)) H.plRefSave(); });
 $('#bPasteEmpty').onclick = () => openPaste('');
 
 /* ================= 이번 주 콘티 링크 ================= */
@@ -2182,11 +2309,12 @@ async function unpackConti(code) {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 async function contiLink(p) {
-  const payload = {v:1, id:p.shareFrom || p.id, n:p.name, s:p.songs.map(s => [s.id, s.title, s.bpm, s.num, s.den, s.pulse === 'dotted' ? 1 : 0, s.sub, s.countIn, s.memo || ''])};
+  const payload = {v:1, id:p.shareFrom || p.id, n:p.name, s:p.songs.map(s => [s.id, s.title, s.bpm, s.num, s.den, s.pulse === 'dotted' ? 1 : 0, s.sub, s.countIn, s.memo || '', s.tone || '', s.ref ? s.ref.u : '', s.ref ? s.ref.n : ''])};
+  if (p.plist) payload.pl = p.plist;
   return shareBase() + '#c=' + await packConti(payload);
 }
 const sigShort = s => s.num === 4 && s.den === 4 ? '' : ` · ${s.num}/${s.den}`;
-const contiText = (p, url) => `[카운트인] ${p.name} · ${p.songs.length}곡\n` + p.songs.map((s, i) => `${i + 1}. ${s.title || '제목 없음'} — ${s.bpm} BPM${sigShort(s)}`).join('\n') + `\n\n열기: ${url}`;
+const contiText = (p, url) => { const al = autoList(p); return `[카운트인] ${p.name} · ${p.songs.length}곡\n` + p.songs.map((s, i) => `${i + 1}. ${s.title || '제목 없음'}${s.tone ? ` (${s.tone})` : ''} — ${s.bpm} BPM${sigShort(s)}`).join('\n') + (p.plist ? `\n\n재생목록: ${p.plist}` : al ? `\n\n레퍼런스 이어 듣기: ${al}` : '') + `\n\n열기: ${url}`; };
 async function copyText(t) {
   try { await navigator.clipboard.writeText(t); return true; }
   catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (x) {} ta.remove(); return ok; }
@@ -2203,8 +2331,8 @@ H.pmShare = async () => {
     <div class="qrbox"><canvas id="qrCv"></canvas></div>
     <p class="note" style="text-align:center">리허설 때 이 QR을 보여 주거나, 아래 버튼으로 단톡방에 보내세요.</p>
     <div class="sh-actions" style="padding-top:0"><button type="button" data-act="shShare">공유하기</button><button type="button" data-act="shCopyMsg">메시지 복사</button><button type="button" data-act="shCopyUrl">링크 복사</button></div>
-    <div class="librow" style="align-items:flex-start"><span class="nm"><b>${esc(p.name)}</b><small style="white-space:pre-line">${esc(p.songs.map((s, i) => `${i + 1}. ${s.title || '제목 없음'} — ${s.bpm} BPM${sigShort(s)}`).join('\n'))}</small></span></div>
-    <p class="note">받은 기기에 같은 콘티가 있으면 새로 만들지 않고 업데이트돼요(그 사람의 메모·악보는 그대로). 악보 PDF는 들어가지 않아요.</p>
+    <div class="librow" style="align-items:flex-start"><span class="nm"><b>${esc(p.name)}</b><small style="white-space:pre-line">${esc(p.songs.map((s, i) => `${i + 1}. ${s.title || '제목 없음'} — ${s.tone ? s.tone + '키 · ' : ''}${s.bpm} BPM${sigShort(s)}${s.ref ? ' · ♪' : ''}`).join('\n'))}${p.plist ? '\n♪ 재생목록 포함' : ''}</small></span></div>
+    <p class="note">코드·레퍼런스 곡·재생목록도 같이 가요. 받은 기기에 같은 콘티가 있으면 새로 만들지 않고 업데이트돼요(그 사람의 메모·악보는 그대로). 악보 PDF는 들어가지 않아요.</p>
   </div>`;
   sheetKind = 'share';
   try {
@@ -2234,14 +2362,14 @@ async function handleConti(hash) {
   if (!hash || !hash.startsWith('#c=')) return;
   history.replaceState(history.state || {s:'home'}, '', location.pathname + location.search);
   let d;
-  try { d = await unpackConti(hash.slice(3)); if (!d || !Array.isArray(d.s)) throw 0; d.s = d.s.filter(Array.isArray).slice(0, 300); d.n = str(d.n || '받은 콘티', 60); d.id = str(d.id, 40); }
+  try { d = await unpackConti(hash.slice(3)); if (!d || !Array.isArray(d.s)) throw 0; d.s = d.s.filter(Array.isArray).slice(0, 300); d.n = str(d.n || '받은 콘티', 60); d.id = str(d.id, 40); d.pl = cleanUrl(d.pl); }
   catch (e) { toast('콘티 링크를 읽지 못했어요 · 링크가 잘렸는지 확인해 주세요'); return; }
   RC = d;
   const mine = D.setlists.find(x => x.id === d.id), same = D.setlists.find(x => x.shareFrom === d.id);
   sheet.innerHTML = `<div class="grab"></div>
   <div class="sh-head"><button class="txtbtn" data-act="close">닫기</button><h2>콘티를 받았어요</h2><button class="txtbtn strong" data-act="rcvSave">${mine ? '열기' : same ? '업데이트' : '저장'}</button></div>
   <div class="sh-body">
-    <div class="librow" style="align-items:flex-start"><span class="nm"><b>${esc(d.n)}</b><small style="white-space:pre-line">${esc(d.s.map((a, i) => `${i + 1}. ${a[1] || '제목 없음'} — ${a[2]} BPM${a[3] === 4 && a[4] === 4 ? '' : ` · ${a[3]}/${a[4]}`}`).join('\n'))}</small></span></div>
+    <div class="librow" style="align-items:flex-start"><span class="nm"><b>${esc(d.n)}</b><small style="white-space:pre-line">${esc(d.s.map((a, i) => `${i + 1}. ${a[1] || '제목 없음'} — ${a[9] ? a[9] + '키 · ' : ''}${a[2]} BPM${a[3] === 4 && a[4] === 4 ? '' : ` · ${a[3]}/${a[4]}`}${a[10] ? ' · ♪' : ''}`).join('\n'))}${d.pl ? '\n♪ 재생목록 포함' : ''}</small></span></div>
     <p class="note">${mine ? '이 기기에서 만든 콘티예요.' : same ? `이미 받은 콘티예요. 업데이트하면 곡 순서·BPM이 바뀌고, 내 메모·악보·표기는 그대로예요.` : '저장하면 이 기기에 콘티로 생겨요. 악보 PDF는 들어 있지 않아요.'}</p>
   </div>`;
   openSheet('receive');
@@ -2250,10 +2378,10 @@ H.rcvSave = () => {
   const d = RC; if (!d) return;
   const mine = D.setlists.find(x => x.id === d.id);
   if (mine) { closeSheet(); setTimeout(() => openProject(mine.id), 60); return; }
-  const songs = d.s.map(a => cleanSong(newSong({id:a[0], title:a[1], bpm:a[2], num:a[3], den:a[4], pulse:a[5] ? 'dotted' : 'eighth', sub:a[6], countIn:a[7], memo:a[8]})));
+  const songs = d.s.map(a => cleanSong(newSong({id:a[0], title:a[1], bpm:a[2], num:a[3], den:a[4], pulse:a[5] ? 'dotted' : 'eighth', sub:a[6], countIn:a[7], memo:a[8], tone:a[9], ref:a[10] ? {u:a[10], n:a[11]} : null})));
   let p = D.setlists.find(x => x.shareFrom === d.id);
-  if (p) { p.name = d.n; p.songs = mergeSongs(p.songs, songs); }
-  else { p = {id:uid(), shareFrom:d.id, name:d.n, pdfs:[], marks:{}, ctl:{on:true, start:true, song:true, page:true, bpm:true, cue:true}, linked:null, followUI:true, songs}; D.setlists.unshift(p); }
+  if (p) { p.name = d.n; p.songs = mergeSongs(p.songs, songs); if (d.pl) p.plist = d.pl; }
+  else { p = {id:uid(), shareFrom:d.id, name:d.n, pdfs:[], marks:{}, ctl:{on:true, start:true, song:true, page:true, bpm:true, cue:true}, linked:null, followUI:true, plist:d.pl || '', songs}; D.setlists.unshift(p); }
   save(); closeSheet(); renderHome();
   setTimeout(() => openProject(p.id), 60);
 };
@@ -2446,10 +2574,281 @@ $('#bCheck').onclick = openCheck;
   document.addEventListener('focusout', () => setTimeout(calc, 120));
 })();
 
-// 점검용: 지금 박 위치·BPM 읽기 (화면에는 영향 없음)
 // 재생 화면에서 처음 화면을 만지는 순간 오디오를 미리 깨워 둠 → 첫 시작도 바로 (다른 앱 음악을 끊지 않게 재생 화면에서만)
 document.addEventListener('pointerdown', () => { if (!$('#scrPlay').hidden && !E.ctx) ensureCtx(); }, true);
+// 점검용: 지금 박 위치·BPM 읽기 (화면에는 영향 없음)
 window.__countin = {beat:() => beatNow(), bpm:() => P.bpm, offset:() => SY.offset, rtt:() => SY.rtt};
+
+/* ================= 계정·온라인 저장 (Supabase · 구글 로그인) ================= */
+// 프로젝트 주소와 publishable(anon) 키는 공개돼도 되는 값 — 실제 보호는 DB의 행 단위 보안(RLS)이 해요.
+// 비밀 키(secret·service_role)는 절대 여기 넣지 않아요.
+const SB_URL = '', SB_KEY = '';
+const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const APP_REDIRECT = 'io.github.chocotea101.countin://login';
+const CLOUD_KEY = 'countin.cloud';
+// st: 마지막으로 맞춘 상태 {uid, h:{콘티id:내용해시}, rt:{콘티id:서버시각}, ph:설정해시, prt:설정서버시각, up:{악보키:1}}
+const CL = {sb:null, user:null, busy:false, again:false, pushT:0, state:'off', at:0, applying:false, st:(() => { try { return JSON.parse(localStorage.getItem(CLOUD_KEY)) || {}; } catch (e) { return {}; } })()};
+const cloudReady = () => !!(SB_URL && SB_KEY);
+const saveCloudSt = () => { try { localStorage.setItem(CLOUD_KEY, JSON.stringify(CL.st)); } catch (e) {} };
+const hashOf = o => { const s = JSON.stringify(o); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
+// 계정에 올리는 콘티: 팀 연결로 받은 콘티(리더 것)와 손대지 않은 예시 콘티는 빼요
+const syncable = p => !String(p.id).startsWith('link-') && !(p.name === '예시 콘티' && p.songs.every(s => /\(예시\)/.test(s.title)));
+const SYNC_SET = ['visual', 'sound', 'vibrate', 'showBar', 'sheetAuto', 'pgBtns', 'songFlip', 'nextAuto', 'light', 'myName'];
+function prefsSnap() {
+  const ps = D.setlists.filter(syncable), keys = new Set(ps.flatMap(p => p.pdfs));
+  const settings = {}; SYNC_SET.forEach(k => { settings[k] = D.settings[k]; });
+  return {order:ps.map(p => p.id), library:D.library.filter(x => keys.has(x.key)), settings};
+}
+const pdfPath = k => `${CL.user.id}/${k}.pdf`;
+
+async function cloudClient() {
+  if (CL.sb) return CL.sb;
+  const S = await loadScript('vendor/supabase.js', 'supabase');
+  CL.sb = S.createClient(SB_URL, SB_KEY, {auth:{flowType:'pkce', persistSession:true, autoRefreshToken:true, detectSessionInUrl:!NATIVE, storageKey:'countin-auth'}});
+  CL.sb.auth.onAuthStateChange((ev, session) => setTimeout(() => onAuth(session, ev), 0));
+  return CL.sb;
+}
+function onAuth(session, ev) {
+  const u = session && session.user, was = CL.user && CL.user.id;
+  if (/[?&](code|error)=/.test(location.search)) history.replaceState(history.state, '', location.pathname + location.hash);
+  if (!u) { CL.user = null; CL.state = 'off'; updAcct(); return; }
+  const md = u.user_metadata || {};
+  CL.user = {id:u.id, email:u.email || '', name:str(md.full_name || md.name || '', 40)};
+  if (u.id === was) { updAcct(); return; }
+  // 다른 계정이거나 이 기기에서 처음 로그인: 이 기기 콘티는 아직 안 올린 것으로 보고 합침
+  if (CL.st.uid !== u.id) { CL.st = {uid:u.id, h:{}, rt:{}, ph:'', prt:'', up:{}}; saveCloudSt(); }
+  if (!D.settings.myName && CL.user.name) { D.settings.myName = CL.user.name; save(); }
+  if (ev === 'SIGNED_IN' && CL.loggingIn) { CL.loggingIn = false; toast(`${CL.user.name || CL.user.email}(으)로 로그인했어요`); }
+  cloudSync();
+}
+async function login() {
+  if (!cloudReady()) { toast('온라인 저장은 준비 중이에요'); return; }
+  if (!navigator.onLine) { toast('인터넷에 연결해 주세요'); return; }
+  try {
+    const sb = await cloudClient(); CL.loggingIn = true;
+    if (NATIVE) {
+      // 구글은 앱 안 웹뷰 로그인을 막아서, 기기 브라우저로 열고 앱 주소로 돌아옴
+      const {data, error} = await sb.auth.signInWithOAuth({provider:'google', options:{redirectTo:APP_REDIRECT, skipBrowserRedirect:true, queryParams:{prompt:'select_account'}}});
+      if (error) throw error;
+      const B = window.Capacitor.Plugins.Browser; if (B) await B.open({url:data.url}); else location.href = data.url;
+    } else {
+      const {error} = await sb.auth.signInWithOAuth({provider:'google', options:{redirectTo:location.origin + location.pathname, queryParams:{prompt:'select_account'}}});
+      if (error) throw error;
+    }
+  } catch (e) { toast('로그인을 시작하지 못했어요 · 잠시 뒤 다시 해 주세요'); }
+}
+// 앱(안드로이드): 브라우저 로그인 뒤 io.github.chocotea101.countin://login?code=… 로 돌아옴
+(() => {
+  const C = window.Capacitor && window.Capacitor.Plugins;
+  if (!C || !C.App) return;
+  C.App.addListener('appUrlOpen', async ({url}) => {
+    if (!url || !url.startsWith(APP_REDIRECT)) return;
+    try { C.Browser && C.Browser.close(); } catch (e) {}
+    const q = new URL(url).searchParams, code = q.get('code');
+    if (!code) { toast('로그인이 취소됐어요'); return; }
+    try { const sb = await cloudClient(); const {error} = await sb.auth.exchangeCodeForSession(code); if (error) throw error; }
+    catch (e) { toast('로그인을 마치지 못했어요 · 다시 해 주세요'); }
+  });
+})();
+async function logout(wipe) {
+  if (!CL.sb) return;
+  clearTimeout(CL.pushT);
+  if (!wipe) { try { await cloudSync(); } catch (e) {} }
+  try { await CL.sb.auth.signOut({scope:'local'}); } catch (e) {}
+  CL.user = null; CL.st = {}; saveCloudSt(); CL.state = 'off';
+  if (wipe) {
+    if (E.playing) stop();
+    try { (await IDB.keys()).forEach(k => IDB.del(k)); } catch (e) {}
+    DOCS.clear(); D = fix(seed()); D.settings.devId = uid(); save(); goHome();
+    toast('로그아웃하고 이 기기의 콘티·악보를 지웠어요');
+  } else toast('로그아웃했어요 · 이 기기의 콘티는 그대로 있어요');
+  updAcct();
+}
+
+// 저장할 때마다 2초 뒤 올림 (연달아 고치면 한 번에)
+function cloudSoon() { if (!CL.user || CL.applying) return; clearTimeout(CL.pushT); CL.pushT = setTimeout(cloudSync, 2000); }
+async function cloudSync() {
+  if (!CL.user || !CL.sb) return;
+  if (CL.busy) { CL.again = true; return; }
+  if (!navigator.onLine) { CL.state = 'offline'; updAcct(); return; }
+  CL.busy = true; CL.state = 'busy'; updAcct();
+  try { await cloudPull(); await cloudPush(); CL.state = 'ok'; CL.at = Date.now(); }
+  catch (e) { CL.state = 'err'; CL.err = String(e && (e.message || e.error_description) || e).slice(0, 120); }
+  CL.busy = false; updAcct();
+  if (CL.again) { CL.again = false; cloudSoon(); }
+}
+async function cloudPull() {
+  const sb = CL.sb, st = CL.st;
+  const {data:rows, error} = await sb.from('countin_contis').select('id,deleted,updated_at');
+  if (error) throw error;
+  const want = rows.filter(r => st.rt[r.id] !== r.updated_at);
+  let changed = false;
+  CL.applying = true;
+  try {
+    const {data:pr, error:e3} = await sb.from('countin_prefs').select('data,updated_at').maybeSingle();
+    if (e3) throw e3;
+    if (pr && pr.updated_at !== st.prt) {
+      const R = pr.data || {}, mine = hashOf(prefsSnap()) === st.ph || !st.prt;
+      (Array.isArray(R.library) ? R.library : []).slice(0, 500).forEach(L0 => {
+        if (!L0 || !L0.key || D.library.some(x => x.key === L0.key)) return;
+        D.library.push({key:str(L0.key, 80), name:str(L0.name || '악보', 80), pages:clamp(Math.round(+L0.pages) || 0, 0, 2000)}); st.up[str(L0.key, 80)] = 1;
+      });
+      if (mine && R.settings) SYNC_SET.forEach(k => { if (k in R.settings && typeof R.settings[k] === typeof DEF_SET[k]) D.settings[k] = R.settings[k]; });
+      if (mine && Array.isArray(R.order)) { const pos = new Map(R.order.map((id, n) => [id, n])); D.setlists.sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : -1) - (pos.has(b.id) ? pos.get(b.id) : -1)); }
+      st.prt = pr.updated_at; changed = true;
+    }
+    for (const r of want.filter(r => r.deleted)) {
+      const i = D.setlists.findIndex(x => x.id === r.id), p = D.setlists[i];
+      if (p && st.h[r.id] === hashOf(p) && !(E.playing && D.cur === p.id)) { D.setlists.splice(i, 1); changed = true; }
+      delete st.h[r.id]; st.rt[r.id] = r.updated_at;
+    }
+    const ids = want.filter(r => !r.deleted).map(r => r.id);
+    for (let k = 0; k < ids.length; k += 50) {
+      const {data:full, error:e2} = await sb.from('countin_contis').select('id,data,updated_at').in('id', ids.slice(k, k + 50));
+      if (e2) throw e2;
+      for (const r of full) {
+        const rp = cleanConti(r.data, r.id), i = D.setlists.findIndex(x => x.id === r.id), p = D.setlists[i];
+        if (!rp) continue;
+        if (p && E.playing && D.cur === p.id) continue;            // 연주 중인 콘티는 멈춘 뒤에 받음
+        if (!p) { D.setlists.push(rp); st.h[r.id] = hashOf(rp); }
+        else if (st.h[r.id] === hashOf(p) || !(r.id in st.h)) {
+          if (r.id in st.h) { D.setlists[i] = rp; st.h[r.id] = hashOf(rp); }
+          else if (hashOf(p) !== hashOf(rp)) { D.setlists.splice(i + 1, 0, {...rp, id:uid(), name:str(rp.name + ' (계정)', 60)}); }   // 처음 합칠 때 양쪽이 다르면 둘 다 남김
+          else st.h[r.id] = hashOf(p);
+        } else {
+          // 이 기기와 다른 기기에서 둘 다 고침: 내 것은 그대로 두고, 계정 쪽 것을 복사본으로 남겨 잃지 않게
+          D.setlists.splice(i + 1, 0, {...rp, id:uid(), name:str(rp.name + ' (다른 기기)', 60)});
+        }
+        st.rt[r.id] = r.updated_at; changed = true;
+      }
+    }
+    if (changed) {
+      const cur = D.cur; D = fix(D); D.cur = D.setlists.some(x => x.id === cur) ? cur : D.cur;
+      save(); applyLight(); refreshAfterCloud();
+    }
+  } finally { CL.applying = false; saveCloudSt(); }
+  prefetchPdfs();
+}
+function cleanConti(x, id) {
+  if (!x || typeof x !== 'object' || !Array.isArray(x.songs)) return null;
+  const one = fix({setlists:[{...x, id}], settings:{...D.settings}, library:D.library.slice()}).setlists[0];
+  return one ? {...one, linked:null} : null;
+}
+async function cloudPush() {
+  const sb = CL.sb, st = CL.st, ps = D.setlists.filter(syncable), ids = new Set(ps.map(p => p.id));
+  const ups = ps.map(p => ({p, h:hashOf(p)})).filter(x => st.h[x.p.id] !== x.h);
+  for (let k = 0; k < ups.length; k += 20) {
+    const part = ups.slice(k, k + 20);
+    const {data, error} = await sb.from('countin_contis').upsert(part.map(x => ({id:x.p.id, data:x.p, deleted:false}))).select('id,updated_at');
+    if (error) throw error;
+    data.forEach(r => { const x = part.find(y => y.p.id === r.id); if (x) { st.h[r.id] = x.h; st.rt[r.id] = r.updated_at; } });
+  }
+  const gone = Object.keys(st.h).filter(id => !ids.has(id));
+  if (gone.length) {
+    const {data, error} = await sb.from('countin_contis').upsert(gone.map(id => ({id, data:{}, deleted:true}))).select('id,updated_at');
+    if (error) throw error;
+    data.forEach(r => { delete st.h[r.id]; st.rt[r.id] = r.updated_at; });
+  }
+  const snap = prefsSnap(), ph = hashOf(snap);
+  if (ph !== st.ph) {
+    const {data, error} = await sb.from('countin_prefs').upsert({data:snap}).select('updated_at').single();
+    if (error) throw error;
+    st.ph = ph; st.prt = data.updated_at;
+  }
+  saveCloudSt();
+  // 악보 PDF: 계정 콘티가 쓰는 것 중 아직 안 올린 것만
+  for (const L of snap.library) {
+    if (st.up[L.key]) continue;
+    const buf = await IDB.get(L.key).catch(() => null); if (!buf) continue;
+    CL.state = 'busy'; updAcct(`악보 올리는 중 · ${L.name}`);
+    const {error} = await sb.storage.from('countin-pdfs').upload(pdfPath(L.key), new Blob([buf], {type:'application/pdf'}), {upsert:true, contentType:'application/pdf'});
+    if (error) { if (/exceeded|too large|413/i.test(error.message || '')) { toast(`"${L.name}"은 50MB가 넘어서 계정에 못 올렸어요 (이 기기엔 있어요)`); st.up[L.key] = -1; continue; } throw error; }
+    st.up[L.key] = 1; saveCloudSt();
+  }
+  // 이 기기에서 지운 악보는 계정에서도 지움
+  const keep = new Set(D.library.map(x => x.key)), drop = Object.keys(st.up).filter(k => !keep.has(k));
+  if (drop.length) { await sb.storage.from('countin-pdfs').remove(drop.map(pdfPath)); drop.forEach(k => delete st.up[k]); saveCloudSt(); }
+}
+// 계정에만 있는 악보 PDF 받아 두기 (나중에 인터넷 없이도 보이게)
+let prefetching = false;
+async function prefetchPdfs() {
+  if (prefetching || !CL.user) return; prefetching = true;
+  try {
+    const need = new Set(D.setlists.filter(syncable).flatMap(p => p.pdfs));
+    for (const k of need) { if (!(await IDB.get(k).catch(() => null))) await cloudPdf(k); }
+  } finally { prefetching = false; }
+}
+async function cloudPdf(key) {
+  if (!CL.user || !CL.sb || !navigator.onLine) return null;
+  const {data, error} = await CL.sb.storage.from('countin-pdfs').download(pdfPath(key));
+  if (error || !data) return null;
+  const buf = await data.arrayBuffer();
+  if (buf.byteLength < 5 || String.fromCharCode(...new Uint8Array(buf, 0, 4)) !== '%PDF') return null;
+  try { await IDB.put(key, buf); } catch (e) {}
+  CL.st.up[key] = 1; saveCloudSt();
+  return buf;
+}
+function refreshAfterCloud() {
+  if (!$('#scrHome').hidden) renderHome();
+  if (!$('#scrList').hidden) { if (curSL()) renderList(); else goHome(); }
+  if (!$('#scrPlay').hidden && !E.playing) { if (song()) renderPlay(); }
+  if (sheetKind === 'acct') renderAcct();
+}
+// 앱으로 돌아올 때·1분 30초마다 계정 것 받아 오기
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && CL.user && Date.now() - CL.at > 15000) cloudSync(); });
+setInterval(() => { if (CL.user && document.visibilityState === 'visible' && !E.playing) cloudSync(); }, 90000);
+addEventListener('online', () => { if (CL.user) cloudSync(); });
+
+/* ---------- 계정 화면 ---------- */
+function acctLine() {
+  if (!CL.user) return '';
+  if (CL.state === 'busy') return CL.msg || '저장하는 중…';
+  if (CL.state === 'offline') return '인터넷이 끊겨 있어요 · 연결되면 저장해요';
+  if (CL.state === 'err') return '저장하지 못했어요 · 잠시 뒤 다시 해요';
+  if (CL.state === 'ok') { const m = Math.round((Date.now() - CL.at) / 60000); return `계정에 저장됨 · ${m < 1 ? '방금' : m + '분 전'}`; }
+  return '연결하는 중…';
+}
+function updAcct(msg) {
+  CL.msg = msg || '';
+  const b = $('#bAcct');
+  if (b) b.hidden = !cloudReady();   // 온라인 저장 설정 전엔 계정 버튼을 숨김
+  if (b) {
+    if (CL.user) { b.textContent = (CL.user.name || CL.user.email || '?').trim().charAt(0).toUpperCase(); b.classList.add('on'); b.setAttribute('aria-label', `계정 · ${CL.user.email}`); }
+    else { setIcon(b, 'user'); b.classList.remove('on'); b.setAttribute('aria-label', '계정 · 로그인'); }
+    b.classList.toggle('err', CL.state === 'err');
+  }
+  if (sheetKind === 'acct') renderAcct();
+}
+let acctArm = false;
+function openAcct() { acctArm = false; renderAcct(); openSheet('acct'); }
+function renderAcct() {
+  const u = CL.user;
+  sheet.innerHTML = `<div class="grab"></div>
+  <div class="sh-head"><span></span><h2>계정</h2><button class="txtbtn" data-act="close">닫기</button></div>
+  <div class="sh-body">
+    ${u ? `<div class="acctcard"><b>${esc(u.name || '구글 계정')}</b><small>${esc(u.email)}</small><span class="acctst${CL.state === 'err' ? ' bad' : ''}">${esc(acctLine())}</span></div>
+      <button type="button" class="btn2" data-act="acctSync" style="align-self:flex-start">지금 저장·받기</button>
+      <p class="note">콘티·곡·BPM·악보 PDF·표기가 이 계정에 저장돼요. 폰·아이패드·컴퓨터에서 같은 계정으로 로그인하면 그대로 이어서 써요. 팀 연결로 받은 리더 콘티는 계정에 올리지 않아요.</p>
+      ${CL.state === 'err' && CL.err ? `<p class="note">${esc(CL.err)}</p>` : ''}
+      <div class="sh-actions"><button type="button" data-act="acctOut">로그아웃</button><button type="button" class="danger" data-act="acctWipe">${acctArm ? '한 번 더 누르면 이 기기에서 지워요' : '로그아웃하고 이 기기에서 지우기'}</button></div>
+      <p class="note">"이 기기에서 지우기"는 이 기기의 콘티·악보만 지워요. 계정에 저장된 것은 그대로 있어서 다시 로그인하면 돌아와요. 여럿이 같이 쓰는 기기라면 이걸로 나가세요.</p>`
+    : cloudReady() ? `<p class="acctlead">구글로 로그인하면 콘티와 악보가 계정에 저장돼요.</p>
+      <button type="button" class="go" data-act="acctIn" style="flex:none">${ic('google')}Google로 로그인</button>
+      <p class="note">폰·아이패드·컴퓨터 어디서든 같은 계정이면 그대로 이어서 써요. 폰을 바꾸거나 잃어버려도 콘티가 남아요. 로그인하면 이 기기에 있던 콘티도 계정에 올라가요.</p>
+      <p class="note">로그인하지 않아도 지금처럼 이 기기에서 다 쓸 수 있어요. 카운트인은 이름·이메일 말고는 구글 계정 정보를 받지 않아요.</p>`
+    : `<p class="note">온라인 저장(구글 로그인)은 준비 중이에요. 지금은 이 기기에 저장되고, 설정 → 백업으로 옮길 수 있어요.</p>`}
+  </div>`;
+}
+H.acctIn = () => login();
+H.acctSync = () => { if (CL.busy) return; cloudSync(); };
+H.acctOut = () => { closeSheet(); logout(false); };
+H.acctWipe = () => { if (!acctArm) { acctArm = true; renderAcct(); return; } closeSheet(); logout(true); };
+H.acct = () => { closeSheet(); setTimeout(openAcct, 60); };
+$('#bAcct').onclick = openAcct;
+// 시작: 전에 로그인했거나 로그인에서 막 돌아왔으면 계정 연결
+if (cloudReady() && (localStorage.getItem('countin-auth') || /[?&]code=/.test(location.search))) { CL.loggingIn = /[?&]code=/.test(location.search); cloudClient().catch(() => {}); }
+window.__cloudReady = true;
+updAcct();
 
 /* ================= 시작 ================= */
 layout(); renderHome(); show('home');
