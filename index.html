@@ -473,7 +473,8 @@ li.dragging{outline-color:var(--text)}
 .blres .tpad-bpm{font-size:clamp(72px,22vw,128px)}
 .blalt{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;align-items:center}
 .blalt .note{margin-right:4px}
-.blmic{display:flex;align-items:center;gap:12px}
+.blmic{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.blmic .blbars{flex:1 1 100%}
 .blmic .btn2{height:52px;min-width:140px}
 .blmic .btn2.on{background:var(--text);color:var(--ink);border-color:var(--text)}
 .blbars{flex:1;display:flex;flex-direction:column;gap:6px}
@@ -482,6 +483,13 @@ li.dragging{outline-color:var(--text)}
 .blbar.lv i{background:var(--mute);transition:width .08s linear}
 .blpad{flex:1 0 150px;margin:0;gap:4px}
 .blpad b{font-size:28px;font-family:var(--f-num)}
+.fldrow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fldrow .pill{display:inline-flex;align-items:center;gap:4px;min-height:36px;font-size:13px}
+.fldrow .pill .i{width:16px;height:16px}
+.linkcard{display:flex;flex-direction:column;gap:10px;padding:14px;border:1.5px solid var(--text);border-radius:12px;background:var(--raise)}
+.linkcard span{display:flex;flex-direction:column;gap:2px}
+.linkcard b{font-size:16px}
+.linkcard small{font-size:13px;color:var(--mute);line-height:1.5}
 .visgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .visgrid .rolecard{padding:12px 14px}
 .txtdlg .ok{background:var(--text);color:var(--ink);font-weight:700;border-color:var(--text)!important}
@@ -775,8 +783,8 @@ body[data-lay="regular"] .sh-head,body[data-lay="wide"] .sh-head{top:0;padding-t
   <div class="blbody">
     <div class="blvid" id="blVid"></div>
     <div class="blres"><div class="tpad-bpm num dim" id="blBpm">—</div><div class="blalt" id="blAlt"></div><div class="tpad-st" id="blSt"></div></div>
-    <div class="blmic"><button type="button" class="btn2" id="blMic"></button><div class="blbars"><div class="blbar"><i id="blProg"></i></div><div class="blbar lv"><i id="blLvl"></i></div></div></div>
-    <p class="note">영상은 노트북·스피커 같은 다른 기기로 틀고 이 폰을 가까이 대면 가장 잘 들어요. 15초쯤 들으면 BPM이 나와요.</p>
+    <div class="blmic"><button type="button" class="btn2" id="blTab" hidden></button><button type="button" class="btn2" id="blMic"></button><div class="blbars"><div class="blbar"><i id="blProg"></i></div><div class="blbar lv"><i id="blLvl"></i></div></div></div>
+    <p class="note" id="blHow"></p>
     <div class="tpad-area blpad" id="blTap"><span class="tpad-st">박에 맞춰 여기를 두드리세요</span><b class="num" id="blTapN"></b></div>
   </div>
 </div>

@@ -36,6 +36,7 @@ const ICONS = {
   music:`<path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/>`,
   ext:`<path d="M13.5 5H19v5.5M19 5l-8 8"/><path d="M17 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 4 18.5v-10A1.5 1.5 0 0 1 5.5 7H10"/>`,
   mic:`<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>`,
+  screen:`<rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 20h6M12 16v4"/>`,
   chevD:`<path d="M6.5 9.5L12 15l5.5-5.5"/>`,
 };
 const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1482,15 +1483,33 @@ function openNewProj() {
   <div class="sh-head"><button class="txtbtn" data-act="close">취소</button><h2>새 콘티</h2><button class="txtbtn strong" data-act="mkProj">만들기</button></div>
   <div class="sh-body">
     <label class="fld"><span>콘티 이름</span><input id="npName" type="text" placeholder="예: 주일 2부 예배 · 11월 2일" maxlength="40" autocomplete="off"></label>
-    <label class="fld"><span>콘티 붙여넣기 (선택)</span><textarea id="npConti" class="inp" placeholder="1. 주님의 선하심 (G)&#10;2. 은혜 (A) 72&#10;3. …"></textarea></label>
-    <p class="note">단톡방 콘티를 그대로 붙여넣으면 곡 목록을 만들어 줘요. 예전에 쓴 곡은 BPM·악보를 그대로 가져와요.</p>
+    <div class="fld"><span class="fldrow">콘티 붙여넣기 (선택)<button type="button" class="pill" data-act="clipIn" data-t="npConti">${ic('paste')}붙여넣기</button></span><textarea id="npConti" class="inp" placeholder="1. 주님의 선하심 (G)&#10;2. 은혜 (A) 72&#10;3. …"></textarea></div>
+    <div id="npLink"></div>
+    <p class="note">단톡방 콘티를 그대로 붙여넣으면 곡 목록을 만들어 줘요. 예전에 쓴 곡은 BPM·악보를 그대로 가져와요. 카운트인으로 보낸 메시지(링크 포함)를 붙여넣으면 코드·레퍼런스·재생목록까지 그대로 받아요.</p>
   </div>`;
   openSheet('newproj');
   setTimeout(() => { const t = $('#npName'); t && t.focus(); }, 250);
   $('#npName').addEventListener('keydown', e => { if (e.key === 'Enter') H.mkProj(); });
+  $('#npConti').addEventListener('input', e => { $('#npLink').innerHTML = linkCard(e.target.value); });
 }
+// 붙여넣은 글 안의 카운트인 콘티 링크(#c=…): 아이폰은 링크를 누르면 Safari·카톡 브라우저에 저장돼서
+// 홈 화면 앱에선 메시지를 복사해 붙여넣는 게 확실한 길 → 링크를 풀어 코드·레퍼런스·재생목록까지 전부 받음
+const contiCode = t => { const m = String(t || '').match(/#c=([01][A-Za-z0-9_-]{8,})/); return m ? m[1] : null; };
+const linkCard = t => contiCode(t) ? `<div class="linkcard"><span><b>카운트인 콘티 링크가 있어요</b><small>링크로 받으면 곡·BPM·코드·레퍼런스·재생목록이 보낸 그대로 들어와요</small></span><button type="button" class="go" data-act="linkGet" style="flex:none">링크로 받기</button></div>` : '';
+H.linkGet = () => {
+  const c = contiCode(($('#npConti') || $('#pasteIn') || {}).value || (PS && PS.text) || '');
+  if (!c) return;
+  closeSheet(); setTimeout(() => handleConti('#c=' + c), 120);
+};
+// 클립보드에서 바로 (아이폰은 '붙여넣기' 말풍선이 한 번 떠요)
+H.clipIn = async b => {
+  const t = $('#' + b.dataset.t); if (!t) return;
+  try { const v = await navigator.clipboard.readText(); if (!v) throw 0; t.value = v; t.dispatchEvent(new Event('input', {bubbles:true})); }
+  catch (e) { t.focus(); toast('글 칸을 길게 눌러 붙여넣기 해 주세요'); }
+};
 H.mkProj = () => {
   const ct = ($('#npConti') && $('#npConti').value || '').trim();
+  if (contiCode(ct) && !($('#npName').value || '').trim()) { H.linkGet(); return; }   // 링크가 든 메시지는 링크 그대로 받기
   const n = ($('#npName').value || '').trim() || (ct && parseConti(ct).header) || '새 콘티';
   const x = {id:uid(), name:n, pdfs:[], marks:{}, ctl:{on:true, start:true, song:true, page:true, bpm:true}, songs:[]}; D.setlists.push(x); save();
   closeSheet(); renderHome();
@@ -1603,7 +1622,7 @@ function renderSettings() {
     <p class="note">불러온 콘티는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v3.5 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
+    <p class="note" style="color:var(--dim)">카운트인 v3.6 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -2198,14 +2217,18 @@ function renderPaste() {
   sheet.innerHTML = `<div class="grab"></div>
   <div class="sh-head"><button class="txtbtn" data-act="close">취소</button><h2>콘티 붙여넣기</h2><button class="txtbtn strong" data-act="pasteAdd" id="pasteGo">넣기</button></div>
   <div class="sh-body">
+    <div class="fldrow"><span class="note">단톡방 콘티를 그대로 붙여넣으세요</span><button type="button" class="pill" data-act="clipIn" data-t="pasteIn">${ic('paste')}붙여넣기</button></div>
+    <div id="pasteLink"></div>
     <textarea id="pasteIn" class="inp" placeholder="단톡방 콘티를 그대로 붙여넣으세요&#10;&#10;11/2 주일 2부&#10;1. 주님의 선하심 (G)&#10;2. 은혜 (A) 72">${esc(PS.text)}</textarea>
     <div class="slrows" id="pasteList"></div>
   </div>`;
   $('#pasteIn').addEventListener('input', e => { PS.text = e.target.value; renderPasteList(); });
+  $('#pasteLink').innerHTML = linkCard(PS.text);
   renderPasteList();
 }
 function renderPasteList() {
   const rows = pasteRows(), on = rows.filter(r => r.on).length;
+  const lk = $('#pasteLink'); if (lk) lk.innerHTML = linkCard(PS.text);
   $('#pasteGo').textContent = on ? `${on}곡 넣기` : '넣기';
   $('#pasteList').innerHTML = rows.length ? rows.map((r, i) => `<div class="prow${r.on ? '' : ' off'}">
       <button type="button" class="pchk" data-act="pasteTog" data-k="${esc(r.k)}" aria-pressed="${r.on}" aria-label="${esc(r.title)} 넣기">${r.on ? '✓' : ''}</button>
@@ -2984,26 +3007,40 @@ function blShow() {
     st.push(`들은 소리 · ${steady ? '<b>안정적</b>' : '<b class="warn">아직 흔들려요</b>'}`);
   }
   if (BL.tap) st.push(`두드림 ${BL.tap.bpm}${BL.auto && C.some(x => near(x, BL.tap.bpm)) ? ' · <b>들은 값과 맞아요</b>' : ''}`);
-  if (!st.length) st.push(`지금 ${BL.s.bpm} BPM · 영상을 틀고 <b>듣고 분석</b>을 누르거나, 아래를 박에 맞춰 두드리세요`);
+  if (!st.length) st.push(`지금 ${BL.s.bpm} BPM · 영상을 틀고 ${canTabAudio() ? '<b>컴퓨터 소리로</b>' : '<b>마이크로 듣기</b>'}를 누르거나, 아래를 박에 맞춰 두드리세요`);
   $('#blSt').innerHTML = st.join(' · ');
   $('#blApply').disabled = !pick;
-  $('#blMic').innerHTML = BL.mic ? `${ic('pause')}그만 듣기` : `${ic('mic')}${BL.auto ? '다시 듣기' : '듣고 분석'}`;
-  $('#blMic').classList.toggle('on', !!BL.mic);
+  const k = BL.mic && BL.mic.kind;
+  $('#blMic').innerHTML = k === 'mic' ? `${ic('pause')}그만 듣기` : `${ic('mic')}${BL.auto ? '마이크로 다시' : '마이크로 듣기'}`;
+  $('#blMic').classList.toggle('on', k === 'mic'); $('#blMic').disabled = k === 'tab';
+  const tb = $('#blTab'); tb.hidden = !canTabAudio();
+  tb.innerHTML = k === 'tab' ? `${ic('pause')}그만 듣기` : `${ic('screen')}컴퓨터 소리로`;
+  tb.classList.toggle('on', k === 'tab'); tb.disabled = k === 'mic';
+  $('#blHow').textContent = canTabAudio() ? "컴퓨터 소리로: 공유 창에서 이 탭(또는 유튜브 탭)을 고르고 '탭 오디오도 공유'를 켜면 마이크 없이 바로 들어요. 15초쯤이면 BPM이 나와요." : '영상은 노트북·스피커 같은 다른 기기로 틀고 이 폰을 가까이 대면 가장 잘 들어요. 15초쯤 들으면 BPM이 나와요.';
 }
 $('#blAlt').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; BL.man = +b.dataset.v; blShow(); });
-async function blMicStart() {
+// 컴퓨터(크롬·엣지)는 화면 공유의 "탭 오디오"로 마이크 없이 소리를 바로 받을 수 있음 — 폰 브라우저는 안 됨
+const canTabAudio = () => !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) && !NATIVE && !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+async function blMicStart(kind) {
   const md = navigator.mediaDevices;
-  if (!md || !md.getUserMedia) { toast('이 브라우저에선 마이크를 쓸 수 없어요 · 두드려서 재 주세요'); return; }
   let stream;
-  try { stream = await md.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}); }
-  catch (e) { toast('마이크를 쓸 수 있게 허락해 주세요'); return; }
+  if (kind === 'tab') {
+    try { stream = await md.getDisplayMedia({video:true, audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false, suppressLocalAudioPlayback:false}, preferCurrentTab:true, selfBrowserSurface:'include', systemAudio:'include', surfaceSwitching:'exclude'}); }
+    catch (e) { toast('공유를 취소했어요'); return; }
+    if (!stream.getAudioTracks().length) { stream.getTracks().forEach(t => t.stop()); toast("소리가 안 들어왔어요 · 공유 창에서 '탭 오디오도 공유'를 켜 주세요"); return; }
+    stream.getTracks().forEach(t => { t.onended = () => blMicStop(); });
+  } else {
+    if (!md || !md.getUserMedia) { toast('이 브라우저에선 마이크를 쓸 수 없어요 · 두드려서 재 주세요'); return; }
+    try { stream = await md.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}); }
+    catch (e) { toast('마이크를 쓸 수 있게 허락해 주세요'); return; }
+  }
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   try { await ctx.resume(); } catch (e) {}
   const src = ctx.createMediaStreamSource(stream), node = ctx.createScriptProcessor(2048, 1, 1), mute = ctx.createGain(), fl = makeFlux(ctx.sampleRate);
   mute.gain.value = 0;
   node.onaudioprocess = e => fl.push(e.inputBuffer.getChannelData(0));
   src.connect(node); node.connect(mute); mute.connect(ctx.destination);
-  Object.assign(BL, {mic:{stream, ctx, src, node, fl, t0:performance.now()}, est:[], last:0, quiet:0, auto:null, man:null});
+  Object.assign(BL, {mic:{stream, ctx, src, node, fl, kind, t0:performance.now()}, est:[], last:0, quiet:0, auto:null, man:null});
   clearInterval(BL.timer); BL.timer = setInterval(blTick, 200);
   blShow();
 }
@@ -3032,7 +3069,8 @@ function blTick() {
     if ((e.length >= 4 && sec >= 9 && Math.max(...e) - Math.min(...e) < .8) || sec >= BL_SECS) { blMicStop(); toast(BL.auto ? '다 들었어요 · 두드려서 한 번 맞춰 보세요' : '박을 찾지 못했어요 · 두드려서 재 주세요'); }
   }
 }
-$('#blMic').onclick = () => BL.mic ? blMicStop() : !$('#blab').hidden && blMicStart();
+$('#blMic').onclick = () => BL.mic ? blMicStop() : !$('#blab').hidden && blMicStart('mic');
+$('#blTab').onclick = () => BL.mic ? blMicStop() : !$('#blab').hidden && blMicStart('tab');
 $('#blTap').addEventListener('pointerdown', e => {
   e.preventDefault();
   const t = e.timeStamp || performance.now();
