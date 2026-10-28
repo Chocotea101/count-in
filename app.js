@@ -44,6 +44,8 @@ const setIcon = (el, n) => { if (el) el.innerHTML = ic(n); };
 document.querySelectorAll('[data-icon]').forEach(el => { el.insertAdjacentHTML('afterbegin', ic(el.dataset.icon)); });
 
 /* ================= 데이터 ================= */
+// 화면 코드 버전: 안드로이드 앱이 이 값과 version.json을 비교해서 새 화면 코드를 받아 옴 (배포 때마다 올림)
+const APP_VER = '3.8.0';
 const KEY = 'countin.v1';
 const DEF_SET = {light:false, visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true, visOffset:0, songFlip:2, myName:'', devId:'', role:''};
 const VIS = [['pulse','원'],['lane','레인'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자'],['edge','테두리']];
@@ -1621,12 +1623,15 @@ function renderSettings() {
     <p class="note">악보는 콘티마다 따로 넣고 빼요. 콘티 화면 오른쪽 위 ⋯ → "이 콘티 악보".</p>
     ${(() => { const o = orphanPdfs(); return o.length ? `<div class="librow"><span class="nm"><b>어느 콘티에도 없는 PDF ${o.length}개</b><small>${esc(o.map(x => x.name).join(', '))}</small></span>
       <button type="button" class="danger" data-act="libPrune">${libDelArm === 'prune' ? '한 번 더 누르면 지우기' : '지우기'}</button></div>` : ''; })()}
+    ${NATIVE ? `<div class="sec-t">앱 버전</div>
+    <div class="librow acctrow"><span class="nm"><b>카운트인 ${APP_VER}</b><small>${UP.ready ? `새 버전 ${esc(UP.ready.version)} 받아 뒀어요 · 다음에 켤 때 바뀌어요` : UP.busy ? '새 버전 내려받는 중…' : '새 버전이 나오면 저절로 받아 와요'}${UP.info ? ` · 앱 ${esc(UP.info.version)}` : ''}</small></span>
+      ${UP.ready ? '<button type="button" class="pill" data-act="upGo">지금 적용</button>' : '<button type="button" class="pill" data-act="upCheck">확인</button>'}</div>` : ''}
     <div class="sec-t">백업</div>
     <div class="sh-actions" style="padding-top:0"><button type="button" data-act="exportD">내보내기</button><button type="button" data-act="importD">불러오기</button></div>
     <p class="note">불러온 콘티는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v3.7 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
+    <p class="note" style="color:var(--dim)">카운트인 v${APP_VER} · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -3089,6 +3094,62 @@ $('#blTap').addEventListener('pointerdown', e => {
 $('#blTap').addEventListener('contextmenu', e => e.preventDefault());
 $('#blCancel').onclick = () => closeBpmLab();
 $('#blApply').onclick = () => { const v = blPick(); if (!v) return; if (BL.cb && BL.cb.apply) BL.cb.apply(clamp(v, 20, 300)); toast(`${v} BPM으로 정했어요`); closeBpmLab(); };
+
+/* ================= 앱 업데이트 (안드로이드) ================= */
+// 앱 화면·기능은 웹 코드라서, 새 버전을 웹사이트(chocotea101.github.io/count-in)에 올리면 앱이 그 묶음(zip)을 받아 바꿔 끼움
+// → APK를 다시 깔 필요 없음. 안드로이드 껍데기(권한·플러그인)가 바뀐 버전만 version.json의 minNative로 막고 새 APK를 깔게 안내
+// 받은 새 코드가 켜지다 멈추면(10초 안에 notifyAppReady 못 하면) 업데이터가 예전 버전으로 되돌림
+const UPDATE_URL = 'https://chocotea101.github.io/count-in/version.json';
+const ZIP_RE = /^https:\/\/chocotea101\.github\.io\/count-in\/bundle\/[\w.-]+\.zip$/;
+const vcmp = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
+const UP = {info:null, latest:null, at:0, busy:false, ready:null, told:''};
+const Upd = () => NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater;
+async function checkUpdate(manual) {
+  const C = window.Capacitor && window.Capacitor.Plugins, U = Upd();
+  if (!U || !C.App || UP.busy) return;
+  if (!manual && Date.now() - UP.at < 3 * 3600e3) return;
+  UP.at = Date.now();
+  try {
+    if (!UP.info) UP.info = await C.App.getInfo();
+    const v = await (await fetch(UPDATE_URL + '?t=' + Date.now(), {cache:'no-store'})).json();
+    if (!v || !ZIP_RE.test(String(v.zip)) || !/^\d+\.\d+\.\d+$/.test(String(v.web))) throw 0;
+    UP.latest = {web:v.web, zip:v.zip, sha:/^[0-9a-f]{64}$/.test(v.sha256) ? v.sha256 : undefined, min:+v.minNative || 0, notes:str(v.notes, 200)};
+    if (vcmp(v.web, APP_VER) <= 0) { if (manual) toast(`최신 버전이에요 (${APP_VER})`); return; }
+    if (UP.latest.min > (+UP.info.build || 0)) {
+      if (manual || UP.told !== v.web) { UP.told = v.web; toast(`새 버전 ${v.web}은 앱을 새로 깔아야 해요 · 드라이브의 카운트인 APK로 설치해 주세요`); }
+      return;
+    }
+    if (!(UP.ready && UP.ready.version === v.web)) {
+      UP.busy = true; if (manual) toast('새 버전 내려받는 중…');
+      UP.ready = await U.download({url:v.zip, version:v.web, checksum:UP.latest.sha});
+    }
+    offerApply();
+  } catch (e) { if (manual) toast('업데이트를 확인하지 못했어요 · 인터넷을 확인해 주세요'); }
+  finally { UP.busy = false; if (sheetKind === 'settings') rerenderSettings(); }
+}
+// 연주 중엔 묻지 않음. 안 누르면 다음에 앱을 켤 때 바로 새 버전으로 켜져요
+function offerApply() { if (!UP.ready || E.playing) return; bandAction(`새 버전 ${UP.ready.version} 준비됐어요${UP.latest && UP.latest.notes ? ' · ' + UP.latest.notes : ''}`, '지금 적용', applyUpdate, null, 15000); }
+async function applyUpdate() {
+  const U = Upd(); if (!U || !UP.ready) return;
+  if (E.playing) { toast('연주를 멈춘 뒤에 적용해 주세요'); return; }
+  save(); busy('새 버전으로 바꾸는 중…');
+  try { await U.set({id:UP.ready.id}); } catch (e) { busy(''); toast('바꾸지 못했어요 · 앱을 다시 켜면 바뀌어요'); }
+}
+H.upCheck = () => checkUpdate(true);
+H.upGo = () => applyUpdate();
+(async () => {
+  const C = window.Capacitor && window.Capacitor.Plugins, U = Upd();
+  if (!U) return;
+  try { await U.notifyAppReady(); } catch (e) {}   // 이 버전이 잘 켜졌다고 알림 (안 하면 10초 뒤 되돌림)
+  // 지난번에 받아 두고 안 바꾼 새 버전이 있으면 켜자마자 바꿈
+  try {
+    const L = (await U.list()).bundles || [];
+    const b = L.filter(x => ['pending', 'success'].includes(x.status) && vcmp(x.version, APP_VER) > 0).sort((a, c) => vcmp(c.version, a.version))[0];
+    if (b && !E.playing) { await U.set({id:b.id}); return; }
+  } catch (e) {}
+  if (C.App) C.App.addListener('appStateChange', st => { if (st && st.isActive) checkUpdate(); });
+  setTimeout(() => checkUpdate(), 3000);
+})();
 
 /* ================= 시작 ================= */
 layout(); renderHome(); show('home');
