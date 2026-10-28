@@ -656,15 +656,33 @@ body[data-lay="regular"] .grab,body[data-lay="wide"] .grab{display:none}
 body[data-lay="regular"] .sheet,body[data-lay="wide"] .sheet{padding-top:0}
 body[data-lay="regular"] .sh-head,body[data-lay="wide"] .sh-head{top:0;padding-top:calc(var(--st) + 16px)}
 @keyframes slidein{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
-/* 가로 넓은 화면: 악보는 박 화면 옆 칸 (박 비주얼과 같이 보임) */
-#scrPlay.sheetside .stage{gap:12px}
-#scrPlay.sheetside .sheetbox{flex:0 0 46%;border-radius:16px;border:var(--lw) solid var(--line)}
-#scrPlay.sheetside .pgside{display:flex}
-#scrPlay.sheetside .pgside.l{left:calc(54% + 6px)}
-#scrPlay.sheetside .sheetctl{display:flex;padding:0 0 10px}
-#scrPlay.sheetside .pgnav{left:auto;right:12px;transform:none}
-#scrPlay.sheetside .barno{right:calc(46% + 20px)}
 @media (prefers-reduced-motion:reduce){.shw.onplay .sheet,body[data-lay] .sheet{animation:none}}
+/* 악보 화면: 평소엔 악보만(‹ › 넘김 화살표는 늘), 탭하면 조작이 위·아래에 작게 떠요 */
+.scr.sheeton.ui .ph{padding:6px max(12px,var(--sr)) 6px max(12px,var(--sl))}
+.scr.sheeton.ui .ph .icbtn{width:40px;height:40px}
+.scr.sheeton.ui .ph-mid .t{font-size:17px}
+.scr.sheeton.ui .ph-mid .sub{font-size:13px}
+.scr.sheeton.ui .side{gap:6px 10px;padding:6px 10px;border-radius:16px}
+.scr.sheeton.ui .bpmrow{padding:0}
+.scr.sheeton.ui .bpmgrp .rbtn{min-height:44px;width:44px;font-size:22px}
+.scr.sheeton.ui .bpmbox{padding:2px 10px}
+.scr.sheeton.ui .bpmbox .big{font-size:34px}
+.scr.sheeton.ui .bpmbox small{display:none}
+.scr.sheeton.ui .ctrl{padding:2px 0;gap:8px}
+.scr.sheeton.ui .ctrl .main{width:52px;height:52px}
+.scr.sheeton.ui .ctrl .main span{display:none}
+.scr.sheeton.ui .ctrl > #bPrev,.scr.sheeton.ui .ctrl > #bNext{width:44px;height:44px;min-height:44px}
+.scr.sheeton.ui .ctrl .snd{width:40px;height:40px;min-height:40px;margin-left:0}
+.scr.sheeton.ui .nextup{display:flex!important;margin:0;padding:0;border:0}
+.scr.sheeton.ui .nextup .nx{display:none}
+.scr.sheeton.ui .nextup .btn2{height:44px;padding:0 12px}
+.scr.sheeton.ui .sheetctl{width:auto}
+.scr.sheeton.ui .sheetctl button{height:44px}
+.pgside{background:rgba(15,18,23,.35);border:1px solid rgba(236,231,220,.18)}
+.scr.sheeton.ui .side{left:50%;right:auto;transform:translateX(-50%);width:max-content;max-width:calc(100% - 16px)}
+body[data-lay] .scr.sheeton.ui .side{padding:6px 12px;column-gap:12px}
+body[data-lay] .scr.sheeton.ui .nextup{order:0;flex-basis:auto}
+body[data-lay] .scr.sheeton.ui .bpmrow,body[data-lay] .scr.sheeton.ui .ctrl{padding:0}
 </style>
 </head>
 <body>

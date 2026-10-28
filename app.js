@@ -186,6 +186,8 @@ function holdRing(el, ms, onDone) {
 }
 
 // 두드린 시각들 → BPM. 중앙값에서 크게 벗어난 간격(놓친 박·두 번 누름)은 빼고, 두 박 간격은 반으로 나눠 씀
+// 두드린 시각: 이벤트 시각이 performance.now와 같은 시계일 때만 씀 (아니면 지금 시각)
+const evT = e => { const n = performance.now(), t = e && e.timeStamp; return t > 0 && Math.abs(n - t) < 2000 ? t : n; };
 function tapBpm(ts) {
   const iv = [];
   for (let i = 1; i < ts.length; i++) iv.push(ts[i] - ts[i - 1]);
@@ -233,14 +235,14 @@ function tapHit(t) {
   $('#tpApply').disabled = false;
 }
 // 손가락이 닿는 순간(pointerdown)의 시각으로 잼
-$('#tpArea').addEventListener('pointerdown', e => { e.preventDefault(); tapHit(e.timeStamp || performance.now()); });
+$('#tpArea').addEventListener('pointerdown', e => { e.preventDefault(); tapHit(evT(e)); });
 $('#tpArea').addEventListener('contextmenu', e => e.preventDefault());
 $('#tpCancel').onclick = () => closeTapPad();
 $('#tpApply').onclick = () => { if (TP.res && TP.cb) TP.cb(TP.res.bpm, TP.ts[TP.ts.length - 1]); closeTapPad(); };
 // 페달·키보드로도 두드리기 (스페이스·엔터·T·→·PageDown)
 document.addEventListener('keydown', e => {
   if ($('#tpad').hidden) return;
-  if ([' ', 'Enter', 't', 'T', 'ArrowRight', 'PageDown', 'ArrowDown'].includes(e.key)) { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) tapHit(e.timeStamp || performance.now()); }
+  if ([' ', 'Enter', 't', 'T', 'ArrowRight', 'PageDown', 'ArrowDown'].includes(e.key)) { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) tapHit(evT(e)); }
   else if (e.key === 'Escape') { e.preventDefault(); closeTapPad(); }
 }, true);
 
@@ -938,7 +940,7 @@ function layout() {
   const l = w >= 1100 && h >= 700 ? 'wide' : w >= 700 && h >= 600 ? 'regular' : 'compact';
   if (l === LAY) return;
   LAY = l; document.body.dataset.lay = l;
-  if (!$('#scrPlay').hidden && song()) applySheet();   // 가로 아이패드는 악보가 박 화면 옆 칸
+  if (!$('#scrPlay').hidden && song()) applySheet();
 }
 let layT; addEventListener('resize', () => { clearTimeout(layT); layT = setTimeout(layout, 80); });
 function openPlay(i, autoplay) {
@@ -951,14 +953,13 @@ function openPlay(i, autoplay) {
 function closePlay() { if (P.markOn) setMarking(false); stop(); setLock(false); show('list'); renderList(); releaseWake(); onTiming(); }
 function loadSong() { stop(); const s = song(); if (!s) return; P.bpm = s.bpm; P.barOff = 0; P.sheetOn = !!s.sheet && D.settings.sheetAuto; renderPlay(); }
 function applySheet() {
-  const s = song(), on = P.sheetOn && !!(s && s.sheet), side = on && LAY === 'wide';
-  P.side = side;
-  $('#scrPlay').classList.toggle('sheeton', on && !side); $('#scrPlay').classList.toggle('sheetside', side);
-  $('#viz').hidden = on && !side; $('#sheetBox').hidden = !on; $('#pgNav').hidden = !on; $('#pgFit').hidden = !on; $('#bMark').hidden = !on;
+  const s = song(), on = P.sheetOn && !!(s && s.sheet);
+  $('#scrPlay').classList.toggle('sheeton', on);
+  $('#viz').hidden = on; $('#sheetBox').hidden = !on; $('#pgNav').hidden = !on; $('#pgFit').hidden = !on; $('#bMark').hidden = !on;
   if (!on && P.markOn) setMarking(false);
   $('#bSheet').hidden = !(s && s.sheet); $('#bSheet').setAttribute('aria-pressed', on);
   $('#scrPlay').classList.toggle('nobtns', !D.settings.pgBtns);
-  if (!on || side) setUi(false);
+  if (!on) setUi(false);
   if (on) showSheet();
 }
 function renderPlay() {
@@ -1053,6 +1054,9 @@ $('#modes').addEventListener('click', e => {
 });
 $('#bTap').onclick = () => openTapPad(P.bpm, (v, tapT) => {
   if (E.playing) retime(v, tapT); else setBpm(v);
+  // 지금 연주 템포만 바뀌고 곡 BPM은 그대로라, 다음에 열면 예전 값으로 돌아감 → 곡에도 저장할지 묻기
+  const s = song(), p = curSL();
+  if (s && s.bpm !== P.bpm && !(p && p.linked)) bandAction(`지금 ${P.bpm} BPM으로 맞췄어요 · 곡에도 저장할까요?`, '저장', () => { s.bpm = P.bpm; save(); updBpm(); toast(`${s.title || '이 곡'} ${s.bpm} BPM으로 저장했어요`); }, null, 8000);
 });
 function holdBtn(el, step) {
   let t1, t2, fired = false;
@@ -1069,7 +1073,7 @@ holdBtn($('#bMinus'), -1); holdBtn($('#bPlus'), 1);
 $('#viz').addEventListener('pointerdown', e => {
   if (e.target.closest('button')) return;
   const s = song(); if (!s || !E.playing || P.followOn || effMode(s) !== 'lane') return;
-  judgeTap(e.timeStamp || performance.now());
+  judgeTap(evT(e));
 });
 // 스와이프로 곡 이동
 [$('#viz')].forEach(v => {
@@ -1134,7 +1138,7 @@ function frame() {
   const ec = $('#edgeCv');
   if ($('#scrPlay').hidden) { if (!ec.hidden) ec.hidden = true; return; }
   const s = song(); if (!s) return;
-  const sheetOn = P.sheetOn && !!s.sheet && !P.side;
+  const sheetOn = P.sheetOn && !!s.sheet;
   const es = eSong(), B = bpb(es), cin = es.countIn * B, mode = sheetOn ? 'edge' : P.followOn ? 'approach' : effMode(s), subs = subsOf(es), targets = roleTargets(B);
   const dec = Math.min(.5, .15 / (60 / P.bpm));
   let b = beatNow(), k = -1, counting = false, lbl = '', audible = false, bar = 0;
@@ -1622,7 +1626,7 @@ function renderSettings() {
     <p class="note">불러온 콘티는 지금 목록에 추가돼요 (기존 것은 그대로). 악보 PDF는 백업 파일에 들어가지 않으니 원본 PDF는 따로 보관하세요.</p>
     <div class="sec-t">조작</div>
     <div class="keys"><span><kbd>SPACE</kbd> 재생</span><span><kbd>→</kbd> 다음</span><span><kbd>←</kbd> 이전</span><span><kbd>↑↓</kbd> BPM</span><span>밀기 곡 이동</span><span>± 길게 5씩</span></div>
-    <p class="note" style="color:var(--dim)">카운트인 v3.6 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
+    <p class="note" style="color:var(--dim)">카운트인 v3.7 · 데이터는 이 기기에만 저장돼요<br>숫자 글꼴 Barlow Condensed (SIL Open Font License 1.1)</p>
   </div>`;
   $('#sVol').oninput = e => { S.volume = +e.target.value; if (E.master) E.master.gain.value = S.volume; save(); };
   $('#sSub').oninput = e => { S.subVol = +e.target.value; save(); };
@@ -2450,7 +2454,7 @@ H.calOpen = () => {
   const upd = () => { $('#calV').textContent = (CAL.off > 0 ? '+' : '') + CAL.off; $('#calRange').value = CAL.off; };
   CAL.upd = upd; upd();
   $('#calRange').oninput = e => { CAL.off = +e.target.value; upd(); };
-  $('#calTap').addEventListener('pointerdown', e => { e.preventDefault(); calTap(e.timeStamp || performance.now()); });
+  $('#calTap').addEventListener('pointerdown', e => { e.preventDefault(); calTap(evT(e)); });
   // 클릭 소리 + 번쩍이는 원
   CAL.on = true; CAL.start = E.ctx.currentTime + .3; CAL.n = 0;
   CAL.t = setInterval(() => {
@@ -2510,7 +2514,7 @@ function openCheck() {
     <div id="chkRes" class="sh-body" style="gap:12px"></div>
   </div>`;
   openSheet('check');
-  $('#chkTap').addEventListener('pointerdown', e => { e.preventDefault(); chkTap(e.timeStamp || performance.now()); });
+  $('#chkTap').addEventListener('pointerdown', e => { e.preventDefault(); chkTap(evT(e)); });
   drawCheck(true);
 }
 function drawCheck(idle) {
@@ -3073,7 +3077,7 @@ $('#blMic').onclick = () => BL.mic ? blMicStop() : !$('#blab').hidden && blMicSt
 $('#blTab').onclick = () => BL.mic ? blMicStop() : !$('#blab').hidden && blMicStart('tab');
 $('#blTap').addEventListener('pointerdown', e => {
   e.preventDefault();
-  const t = e.timeStamp || performance.now();
+  const t = evT(e);
   if (BL.ts.length && t - BL.ts[BL.ts.length - 1] > 2500) BL.ts = [];
   BL.ts.push(t); if (BL.ts.length > 12) BL.ts.shift();
   const a = $('#blTap'); a.classList.add('hit'); clearTimeout(BL.flashT); BL.flashT = setTimeout(() => a.classList.remove('hit'), 90);
