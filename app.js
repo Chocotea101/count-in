@@ -45,7 +45,7 @@ document.querySelectorAll('[data-icon]').forEach(el => { el.insertAdjacentHTML('
 
 /* ================= 데이터 ================= */
 // 화면 코드 버전: 안드로이드 앱이 이 값과 version.json을 비교해서 새 화면 코드를 받아 옴 (배포 때마다 올림)
-const APP_VER = '3.8.0';
+const APP_VER = '3.9.0';
 const KEY = 'countin.v1';
 const DEF_SET = {light:false, visual:'pulse', sound:'wood', volume:.8, subVol:.45, vibrate:'down', wake:true, soundOn:true, nextAuto:false, showBar:true, sheetAuto:true, pgBtns:true, visOffset:0, songFlip:2, myName:'', devId:'', role:''};
 const VIS = [['pulse','원'],['lane','레인'],['flash','플래시'],['pend','진자'],['bounce','공'],['count','숫자'],['edge','테두리']];
@@ -2623,7 +2623,7 @@ window.__countin = {beat:() => beatNow(), bpm:() => P.bpm, offset:() => SY.offse
 /* ================= 계정·온라인 저장 (Supabase · 구글 로그인) ================= */
 // 프로젝트 주소와 publishable(anon) 키는 공개돼도 되는 값 — 실제 보호는 DB의 행 단위 보안(RLS)이 해요.
 // 비밀 키(secret·service_role)는 절대 여기 넣지 않아요.
-const SB_URL = '', SB_KEY = '';
+const SB_URL = 'https://kkifslqnxjxkntbhtxee.supabase.co', SB_KEY = 'sb_publishable_q6T1Pp01N8N8FKzt0zXpCg_D8TWRRqw';
 const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const APP_REDIRECT = 'io.github.chocotea101.countin://login';
 const CLOUD_KEY = 'countin.cloud';
@@ -2860,8 +2860,8 @@ function updAcct(msg) {
   }
   if (sheetKind === 'acct') renderAcct();
 }
-let acctArm = false;
-function openAcct() { acctArm = false; renderAcct(); openSheet('acct'); }
+let acctArm = false, purgeArm = false;
+function openAcct() { acctArm = false; purgeArm = false; renderAcct(); openSheet('acct'); }
 function renderAcct() {
   const u = CL.user;
   sheet.innerHTML = `<div class="grab"></div>
@@ -2872,7 +2872,9 @@ function renderAcct() {
       <p class="note">콘티·곡·BPM·악보 PDF·표기가 이 계정에 저장돼요. 폰·아이패드·컴퓨터에서 같은 계정으로 로그인하면 그대로 이어서 써요. 팀 연결로 받은 리더 콘티는 계정에 올리지 않아요.</p>
       ${CL.state === 'err' && CL.err ? `<p class="note">${esc(CL.err)}</p>` : ''}
       <div class="sh-actions"><button type="button" data-act="acctOut">로그아웃</button><button type="button" class="danger" data-act="acctWipe">${acctArm ? '한 번 더 누르면 이 기기에서 지워요' : '로그아웃하고 이 기기에서 지우기'}</button></div>
-      <p class="note">"이 기기에서 지우기"는 이 기기의 콘티·악보만 지워요. 계정에 저장된 것은 그대로 있어서 다시 로그인하면 돌아와요. 여럿이 같이 쓰는 기기라면 이걸로 나가세요.</p>`
+      <p class="note">"이 기기에서 지우기"는 이 기기의 콘티·악보만 지워요. 계정에 저장된 것은 그대로 있어서 다시 로그인하면 돌아와요. 여럿이 같이 쓰는 기기라면 이걸로 나가세요.</p>
+      <button type="button" class="txtbtn danger" data-act="acctPurge" style="align-self:flex-start;border:0!important">${purgeArm ? '한 번 더 누르면 계정 자료를 모두 지워요' : '계정에 저장된 내 자료 지우기'}</button>
+      <p class="note">계정에 올라간 콘티·설정·악보 PDF를 서버에서 모두 지우고 로그아웃해요. 이 기기의 콘티는 남아요. 계정 기록(이름·이메일)까지 지우려면 <a href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>의 이메일로 요청해 주세요.</p>`
     : cloudReady() ? `<p class="acctlead">구글로 로그인하면 콘티와 악보가 계정에 저장돼요.</p>
       <button type="button" class="go" data-act="acctIn" style="flex:none">${ic('google')}Google로 로그인</button>
       <p class="note">폰·아이패드·컴퓨터 어디서든 같은 계정이면 그대로 이어서 써요. 폰을 바꾸거나 잃어버려도 콘티가 남아요. 로그인하면 이 기기에 있던 콘티도 계정에 올라가요.</p>
@@ -2884,9 +2886,27 @@ H.acctIn = () => login();
 H.acctSync = () => { if (CL.busy) return; cloudSync(); };
 H.acctOut = () => { closeSheet(); logout(false); };
 H.acctWipe = () => { if (!acctArm) { acctArm = true; renderAcct(); return; } closeSheet(); logout(true); };
+// 계정 자료 지우기: 서버의 콘티·설정·악보 PDF를 지우고 로그아웃 (이 기기 자료는 둠 → 다시 올라가지 않게 로그아웃까지)
+H.acctPurge = async () => {
+  if (!purgeArm) { purgeArm = true; renderAcct(); return; }
+  if (!CL.user || !CL.sb) return;
+  const sb = CL.sb, uid = CL.user.id;
+  clearTimeout(CL.pushT); CL.busy = true; busy('계정 자료 지우는 중…');
+  try {
+    for (;;) { const {data:f, error} = await sb.storage.from('countin-pdfs').list(uid, {limit:100}); if (error) throw error; if (!f || !f.length) break; const {error:e2} = await sb.storage.from('countin-pdfs').remove(f.map(x => `${uid}/${x.name}`)); if (e2) throw e2; }
+    const {error:e3} = await sb.from('countin_contis').delete().neq('id', ''); if (e3) throw e3;
+    const {error:e4} = await sb.from('countin_prefs').delete().eq('user_id', uid); if (e4) throw e4;
+    try { await sb.auth.signOut({scope:'local'}); } catch (e) {}
+    CL.user = null; CL.st = {}; saveCloudSt(); CL.state = 'off'; busy(''); closeSheet(); updAcct();
+    toast('계정에 저장된 자료를 모두 지우고 로그아웃했어요');
+  } catch (e) { busy(''); toast('지우지 못했어요 · 인터넷을 확인하고 다시 해 주세요'); }
+  CL.busy = false;
+};
 H.acct = () => { closeSheet(); setTimeout(openAcct, 60); };
 $('#bAcct').onclick = openAcct;
 // 시작: 전에 로그인했거나 로그인에서 막 돌아왔으면 계정 연결
+// 로그인에서 오류로 돌아왔을 때(시간 초과·취소): 알려 주고 주소 정리
+{ const q = new URLSearchParams(location.search); if (q.get('error')) { setTimeout(() => toast(/expired|state/i.test(q.get('error_description') || q.get('error_code') || '') ? '로그인 시간이 지났어요 · 계정 버튼에서 다시 로그인해 주세요' : '로그인이 취소됐어요'), 600); history.replaceState(history.state, '', location.pathname + location.hash); } }
 if (cloudReady() && (localStorage.getItem('countin-auth') || /[?&]code=/.test(location.search))) { CL.loggingIn = /[?&]code=/.test(location.search); cloudClient().catch(() => {}); }
 window.__cloudReady = true;
 updAcct();
